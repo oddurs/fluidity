@@ -43,9 +43,14 @@ whatever you are measuring.
   terminates the string and breaks the build. `half` is a reserved word in
   GLSL ES.
 - **`preserveDrawingBuffer` is false.** Reading the canvas (plate export,
-  brightness checks) must happen synchronously in the same task as `render()`.
-  An in-page `drawImage` from a later task returns black; take a composited
-  screenshot instead.
+  clip capture, brightness checks) must happen synchronously in the same task
+  as `render()`. An in-page `drawImage` from a later task returns black; take a
+  composited screenshot instead. This is why `ClipRecorder.frame()` is called
+  from inside the render loop rather than on its own timer.
+- **The adaptive quality controller must be suspended during clip capture.**
+  The compositor costs real milliseconds per frame, and the controller reads a
+  slow frame as GPU overload — so it would drop the grid partway through, and
+  the clip would record its own degradation.
 - **Section and equation numbers in `components/Science.tsx` are positional.**
   Inserting one means renumbering all of them and fixing prose cross-references.
 - **The control column fits exactly** at a 1000px viewport, verified in

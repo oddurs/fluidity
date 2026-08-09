@@ -21,22 +21,38 @@ function family(cssVar: string, fallback: string): string {
   return v ? `${v}, ${fallback}` : fallback;
 }
 
-export function buildPlate(engine: FluidEngine, canvas: HTMLCanvasElement, info: PlateInfo): string {
-  // Render and copy in the same task — the drawing buffer is discarded at
-  // the next composite, so nothing here may be deferred or awaited.
-  engine.render();
+export interface PlateLayout {
+  W: number;
+  H: number;
+  s: number;
+  headerH: number;
+  footerH: number;
+  pad: number;
+}
 
+/** The plate's geometry for a given specimen. Shared by the still and the clip. */
+export function plateLayout(canvas: HTMLCanvasElement): PlateLayout {
   const W = canvas.width;
   const s = W / 1600;
   const headerH = Math.round(70 * s);
   const footerH = Math.round(150 * s);
-  const pad = Math.round(28 * s);
-  const H = headerH + canvas.height + footerH;
+  return { W, H: headerH + canvas.height + footerH, s, headerH, footerH, pad: Math.round(28 * s) };
+}
 
-  const out = document.createElement("canvas");
-  out.width = W;
-  out.height = H;
-  const g = out.getContext("2d")!;
+/**
+ * Paint one plate — chrome and specimen — into a 2D context.
+ *
+ * The caller must have rendered the WebGL canvas in this same task:
+ * `preserveDrawingBuffer` is false, so the drawing buffer is discarded at the
+ * next composite and cannot be copied later.
+ */
+export function paintPlate(
+  g: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  info: PlateInfo,
+  layout: PlateLayout,
+) {
+  const { W, H, s, headerH, footerH, pad } = layout;
 
   // Copy the live drawing buffer first, while it is still valid.
   g.drawImage(canvas, 0, headerH);
@@ -106,6 +122,17 @@ export function buildPlate(engine: FluidEngine, canvas: HTMLCanvasElement, info:
   g.fillText(info.stamp, W - pad, footY);
   g.textAlign = "left";
 
+}
+
+export function buildPlate(engine: FluidEngine, canvas: HTMLCanvasElement, info: PlateInfo): string {
+  // Render and copy in the same task — the drawing buffer is discarded at
+  // the next composite, so nothing here may be deferred or awaited.
+  engine.render();
+  const layout = plateLayout(canvas);
+  const out = document.createElement("canvas");
+  out.width = layout.W;
+  out.height = layout.H;
+  paintPlate(out.getContext("2d")!, canvas, info, layout);
   return out.toDataURL("image/png");
 }
 

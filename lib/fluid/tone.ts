@@ -55,6 +55,17 @@ export function estimatePitch(trace: number[], sampleHz: number): Pitch {
   const strength = Math.min(1, rms / 6);
   if (at.length < 2) return { freq: 0, strength: 0 };
 
+  // Cycles per second over the span actually observed. This averages across
+  // every cycle in the window, which is what makes it hold steady on a real
+  // pressure trace.
+  //
+  // Rejected: the median interval between crossings. It is the textbook
+  // robust answer and it does fix the amplitude-modulation bias below, but on
+  // a real trace the gaps are strongly skewed — clusters of rapid crossings
+  // separated by quiet stretches — so the median lands on a sub-cycle
+  // interval and reads high. Measured in the tank it reported 1.67 Hz against
+  // a true 1.0, worse and more often than the bias it set out to fix.
+  // Correcting this properly means autocorrelation, not a different average.
   const halfCycles = at.length - 1;
   const seconds = (at[at.length - 1] - at[0]) / sampleHz;
   const freq = seconds > 0 ? halfCycles / 2 / seconds : 0;

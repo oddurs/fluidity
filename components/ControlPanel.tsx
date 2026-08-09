@@ -63,6 +63,9 @@ interface Props {
   tone: boolean;
   onToggleTone: () => void;
   onSavePlate: () => void;
+  onRecord: () => void;
+  recording: boolean;
+  recordProgress: number;
   onCopyLink: () => void;
   onToggleKeys: () => void;
   telemetry: Telemetry;
@@ -90,6 +93,9 @@ export function ControlPanel({
   tone,
   onToggleTone,
   onSavePlate,
+  onRecord,
+  recording,
+  recordProgress,
   onCopyLink,
   onToggleKeys,
   telemetry,
@@ -226,11 +232,21 @@ export function ControlPanel({
           <button className="btn" onClick={onToggleProbe} aria-pressed={probe}>
             {probe ? "PROBE: ON" : "PROBE: OFF"}
           </button>
+        </div>
+        <div className="actionRow actionRow3">
           <button className="btn" onClick={onSavePlate}>
-            SAVE PLATE
+            STILL
+          </button>
+          <button
+            className={`btn${recording ? " btnRecording" : ""}`}
+            onClick={onRecord}
+            aria-pressed={recording}
+            style={{ "--rec": `${recordProgress * 100}%` } as React.CSSProperties}
+          >
+            {recording ? "RECORDING" : "CLIP"}
           </button>
           <button className="btn" onClick={onCopyLink}>
-            COPY LINK
+            LINK
           </button>
         </div>
         <div className="actionRow">

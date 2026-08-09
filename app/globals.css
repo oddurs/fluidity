@@ -1151,15 +1151,17 @@ input[type="range"]::-moz-range-thumb {
 
 .panelActions {
   /* Absorbs the leftover height instead of leaving a dead band above the
-     telemetry block, and the controls get more comfortable targets for it. */
-  flex: 1 1 auto;
+     telemetry block, and the controls get more comfortable targets for it.
+     Grows but never shrinks: allowed to shrink, a short viewport squeezed this
+     block to nothing and its buttons rendered on top of the telemetry. The
+     column scrolls in that case, which is what the scrollbar is for. */
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
-  min-height: 0;
 }
 
 .panelActions .actionRow {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
 }
 
 .actionRow {
@@ -1170,6 +1172,24 @@ input[type="range"]::-moz-range-thumb {
 
 .actionRow .btn {
   margin: 0 -1px -1px 0;
+}
+
+/* Recording shows its own progress. The button already reads as engaged from
+   the pressed style; the clip's remaining length is a bar across its foot,
+   rather than a fill behind the label, which would put light text on orange. */
+.panel .btn.btnRecording {
+  position: relative;
+  overflow: hidden;
+}
+
+.panel .btn.btnRecording::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  width: var(--rec, 0%);
+  background: var(--ink);
 }
 
 /* Transient actions sit three-up; modes and exports pair off below. */

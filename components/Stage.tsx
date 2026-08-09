@@ -8,8 +8,9 @@ import { LabCommand, onLabCommand } from "@/lib/fluid/bus";
 import { DEFAULT_PARAMS, FluidEngine, SimParams, ViewMode } from "@/lib/fluid/engine";
 import { burst, Scenario, SCENARIOS } from "@/lib/fluid/scenarios";
 import { decodeState, encodeState } from "@/lib/fluid/permalink";
-import { buildPlate, downloadPlate } from "@/lib/fluid/plate";
+import { buildPlate, downloadPlate, type PlateInfo } from "@/lib/fluid/plate";
 import { QualityController } from "@/lib/fluid/quality";
+import { ClipRecorder, downloadClip, extensionFor, pickMimeType } from "@/lib/fluid/recorder";
 import { AeolianTone, estimatePitch } from "@/lib/fluid/tone";
 import { TOUR } from "@/lib/fluid/tour";
 import { Annotations, InstrumentSnapshot, TraceView } from "./Annotations";
@@ -138,6 +139,13 @@ export function Stage() {
   const [announcement, setAnnouncement] = useState("");
   const [narration, setNarration] = useState("");
 
+  /** Clip capture. The app is about motion; a still could never show it. */
+  const recorderRef = useRef<ClipRecorder | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recordProgress, setRecordProgress] = useState(0);
+  /** Built fresh each frame so the data block tracks the running solver. */
+  const plateInfoRef = useRef<(() => PlateInfo) | null>(null);
+
   // Aeolian tone: the shedding frequency, made audible. Off until asked for.
   const toneRef = useRef<AeolianTone | null>(null);
   const [tone, setTone] = useState(false);
@@ -177,6 +185,7 @@ export function Stage() {
     let frameEma = 16;
     let lastFlush = 0;
     let traceTick = -Infinity;
+    let recordStep = -1;
 
     const loop = (now: number) => {
       const rawDt = (now - last) / 1000;
@@ -201,7 +210,11 @@ export function Stage() {
       engine.resize();
 
       // Adaptive quality: drop resolution when the frame budget is missed.
-      const drop = qualityRef.current.sample(rawDt * 1000);
+      // Suspended while recording — the compositor makes frames slower, and
+      // degrading the tank halfway through a clip is exactly wrong.
+      const drop = recorderRef.current?.running
+        ? null
+        : qualityRef.current.sample(rawDt * 1000);
       if (drop) {
         engine.setResolution(drop.simResolution, drop.dyeResolution);
       }
@@ -240,6 +253,35 @@ export function Stage() {
         engine.step(dt);
       }
       engine.render();
+
+      // Clip capture paints here, in the same task as the render, for the
+      // same reason the still export does.
+      const rec = recorderRef.current;
+      if (rec?.running && plateInfoRef.current) {
+        const finished = rec.frame(now, canvas, plateInfoRef.current());
+        // Coarsely: the progress fill has about twenty legible steps, and a
+        // re-render per frame is precisely the disturbance a capture must not
+        // introduce.
+        const step = Math.floor(rec.progress * 20);
+        if (step !== recordStep) {
+          recordStep = step;
+          setRecordProgress(rec.progress);
+        }
+        if (finished) {
+          const scenarioId = scenarioRef.current.id;
+          void rec.finish().then(({ blob, mime }) => {
+            setRecording(false);
+            setRecordProgress(0);
+            if (!blob.size) {
+              setFlash("CLIP CAPTURE FAILED");
+              return;
+            }
+            downloadClip(blob, `fluidity-${scenarioId}-${Date.now()}.${extensionFor(mime)}`);
+            setFlash("CLIP SAVED");
+            setTimeout(() => setFlash((c) => (c === "CLIP SAVED" ? null : c)), 2200);
+          });
+        }
+      }
 
       // Sample the probe faster than the readout refreshes: the sparkline
       // needs the resolution, but React does not need the updates. Gate on
@@ -632,30 +674,57 @@ export function Stage() {
     setTimeout(() => setFlash((cur) => (cur === msg ? null : cur)), 2200);
   }, []);
 
+  const plateInfo = useCallback((): PlateInfo => {
+    const engine = engineRef.current!;
+    const scenario = scenarioRef.current;
+    const [simW, simH] = engine.simSize;
+    const [dyeW, dyeH] = engine.dyeSize;
+    return {
+      fig: scenario.fig ?? "FIG. — SPECIMEN",
+      scenarioName: scenario.name,
+      view: engine.viewMode,
+      params: engine.params,
+      simGrid: `${simW}×${simH}`,
+      dyeGrid: `${dyeW}×${dyeH}`,
+      stamp: new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC",
+    };
+  }, []);
+
+  useEffect(() => {
+    plateInfoRef.current = plateInfo;
+  }, [plateInfo]);
+
   const savePlate = useCallback(() => {
     const engine = engineRef.current;
     const canvas = canvasRef.current;
     if (!engine || !canvas) return;
     const scenario = scenarioRef.current;
-    const [simW, simH] = engine.simSize;
-    const [dyeW, dyeH] = engine.dyeSize;
     const now = new Date();
-    const stamp = now.toISOString().replace("T", " ").slice(0, 19) + " UTC";
     try {
-      const url = buildPlate(engine, canvas, {
-        fig: scenario.fig ?? "FIG. — SPECIMEN",
-        scenarioName: scenario.name,
-        view: engine.viewMode,
-        params: engine.params,
-        simGrid: `${simW}×${simH}`,
-        dyeGrid: `${dyeW}×${dyeH}`,
-        stamp,
-      });
+      const url = buildPlate(engine, canvas, plateInfo());
       downloadPlate(url, `fluidity-${scenario.id}-${now.getTime()}.png`);
       showFlash("PLATE SAVED");
     } catch {
       showFlash("PLATE EXPORT FAILED");
     }
+  }, [showFlash, plateInfo]);
+
+  const CLIP_MS = 6000;
+
+  const recordClip = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || recorderRef.current?.running) return;
+    if (!pickMimeType()) {
+      showFlash("CLIP CAPTURE UNAVAILABLE");
+      return;
+    }
+    const rec = recorderRef.current ?? (recorderRef.current = new ClipRecorder());
+    if (!rec.start(canvas, CLIP_MS)) {
+      showFlash("CLIP CAPTURE UNAVAILABLE");
+      return;
+    }
+    setRecording(true);
+    setRecordProgress(0);
   }, [showFlash]);
 
   const copyLink = useCallback(() => {
@@ -962,6 +1031,7 @@ export function Stage() {
       else if (key === "a") toggleAutopilot();
       else if (key === "r") toggleProbe();
       else if (key === "s") savePlate();
+      else if (key === "m") recordClip();
       else if (key === "l") copyLink();
       else if (key === "t") void toggleTone();
       else if (key === "?" || (e.shiftKey && key === "/")) setShowKeys((s) => !s);
@@ -978,6 +1048,7 @@ export function Stage() {
     toggleAutopilot,
     toggleProbe,
     savePlate,
+    recordClip,
     copyLink,
     toggleTone,
     nudge,
@@ -1079,6 +1150,7 @@ export function Stage() {
                 ["A", "AUTO.PILOT"],
                 ["R", "PROBE"],
                 ["S", "SAVE PLATE"],
+                ["M", "RECORD CLIP"],
                 ["L", "COPY LINK"],
                 ["T", "AEOLIAN TONE"],
                 ["ESC", "TAKE OVER"],
@@ -1144,6 +1216,9 @@ export function Stage() {
         tone={tone}
         onToggleTone={toggleTone}
         onSavePlate={savePlate}
+        onRecord={recordClip}
+        recording={recording}
+        recordProgress={recordProgress}
         onCopyLink={copyLink}
         onToggleKeys={() => setShowKeys((s) => !s)}
         telemetry={telemetry}

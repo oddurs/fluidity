@@ -37,6 +37,9 @@ test.describe("responsive", () => {
   }
 
   test("the stage reaches the bottom edge with no seam", async ({ page }) => {
+    // Three viewports, each a full reload and a settle. Alone it takes 12s;
+    // behind the rest of the suite Firefox has run out the default budget.
+    test.slow();
     // The stage is exactly one viewport tall, so a light rule on its bottom
     // border landed on the last two pixels of the screen and read as a pale
     // line under a full-bleed simulation.

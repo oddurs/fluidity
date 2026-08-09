@@ -32,6 +32,28 @@ test("finds the signal under heavy noise", () => {
   assert.ok(Math.abs(freq - 1.5) < 0.4, `read ${freq}`);
 });
 
+test("amplitude modulation biases the estimate low, but boundedly", () => {
+  // A real vortex street does not arrive at the probe as a constant-amplitude
+  // sine: the wake meanders. Cycles that fall below the hysteresis band go
+  // uncounted, so the estimate reads low — about 20% on this trace.
+  //
+  // This pins that limitation rather than claiming it is fixed. The obvious
+  // repair, taking the median interval between crossings instead of counting
+  // them, was tried and reverted: see the note in tone.ts, it reads high on
+  // real traces and was worse overall. Autocorrelation would fix it properly.
+  // Until then the number is honest to within a fifth, which the readout's
+  // two decimal places rather oversell.
+  const f = 1.5;
+  const breathing = Array.from({ length: N }, (_, i) => {
+    const t = i / HZ;
+    const envelope = 1 + 0.85 * Math.sin(2 * Math.PI * 0.25 * t);
+    return 8 * envelope * Math.sin(2 * Math.PI * f * t);
+  });
+  const { freq } = estimatePitch(breathing, HZ);
+  const err = Math.abs(freq - f) / f;
+  assert.ok(err < 0.25, `${f}Hz read as ${freq.toFixed(2)}Hz (${(err * 100).toFixed(1)}%)`);
+});
+
 test("a trace too short to judge reports nothing", () => {
   assert.equal(estimatePitch([1, 2, 3], HZ).freq, 0);
 });

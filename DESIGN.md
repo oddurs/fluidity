@@ -312,6 +312,8 @@ scroll-triggered reveals, no staggered entrances beyond the boot.**
 - **Ghost numeral** — display face, `opacity: 0.055`, bled to the page edge.
 - **Registration mark** — 14px corner tick at 32% white, framing the specimen.
 - **Plate** — the export format: header rule, full-bleed specimen, data block.
+  Both exports use it. `STILL` is one frame of it; `CLIP` is six seconds of it,
+  painted from the same layout code so the two can never drift apart.
 
 ## 8. Accessibility floor
 

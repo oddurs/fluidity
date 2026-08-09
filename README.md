@@ -58,6 +58,11 @@ The tank is fully keyboard operable: `Tab` to focus it, arrows to move the
 probe, `O` to switch to the obstacle, `Enter` to stir, `.` to hear the tank
 described. Press `?` for the full map.
 
+Anything on screen can leave with you. `STILL` writes a PNG plate — header,
+full-bleed specimen, and a data block recording every parameter that produced
+it — and `CLIP` (or `M`) records six seconds of that same plate as video, so a
+result you can only describe in motion does not have to be described.
+
 ## Tests
 
 ```bash
@@ -85,6 +90,8 @@ lib/fluid/      The solver and everything it needs
   colormaps.ts    perceptually-uniform ramps and named inks
   quality.ts      adaptive resolution
   tone.ts         shedding-frequency estimation and the aeolian tone
+  plate.ts        the export layout, shared by the still and the clip
+  recorder.ts     MediaRecorder capture of the plate
 e2e/            Playwright specs
 DESIGN.md       the design system, and the reasoning behind it
 ```
