@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { PNG } from "pngjs";
 
 const VIEWPORTS = [
   { name: "phone portrait", vp: { width: 390, height: 844 }, stacked: true },
@@ -34,6 +35,26 @@ test.describe("responsive", () => {
       expect(r.hOverflow).toBe(0);
     });
   }
+
+  test("the stage reaches the bottom edge with no seam", async ({ page }) => {
+    // The stage is exactly one viewport tall, so a light rule on its bottom
+    // border landed on the last two pixels of the screen and read as a pale
+    // line under a full-bleed simulation.
+    for (const height of [1000, 901, 1080]) {
+      await page.setViewportSize({ width: 1400, height });
+      await page.goto("/");
+      await page.waitForTimeout(3500);
+      const png = PNG.sync.read(await page.screenshot());
+      const y = png.height - 1;
+      let brightest = 0;
+      for (let x = 0; x < png.width; x++) {
+        const p = (y * png.width + x) << 2;
+        brightest = Math.max(brightest, (png.data[p] + png.data[p + 1] + png.data[p + 2]) / 3);
+      }
+      // The chrome is near-black; anything pale down here is a seam.
+      expect(brightest, `seam at ${height}px tall`).toBeLessThan(120);
+    }
+  });
 
   test("the control column fits exactly at 1000px tall", async ({ page }) => {
     // Engines size form controls differently; Firefox was 9px over when

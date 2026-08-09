@@ -265,7 +265,11 @@ body {
   height: 100vh;
   height: 100dvh;
   min-height: 480px;
-  border-bottom: 2px solid var(--machine-rule);
+  /* No bottom rule: the stage is exactly one viewport tall, so a light
+     border landed on the last two pixels of the screen and read as a seam.
+     The scroll cue immediately below already separates stage from document.
+     The dark ground guards against a sub-pixel gap on fractional dvh. */
+  background: var(--machine-deep);
 }
 
 /* Short viewports — a phone held sideways. The min-height would push the
