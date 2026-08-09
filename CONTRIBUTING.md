@@ -19,6 +19,15 @@ npm test          # unit + end-to-end
 
 The end-to-end suite needs browsers: `npx playwright install`.
 
+**CI runs Chromium only, so run all three engines yourself before opening a
+PR.** GitHub's runners have no GPU. Chromium falls back to SwiftShader and
+solves the fluid fine, but Firefox and WebKit cannot rasterise WebGL2 fast
+enough there to so much as screenshot the canvas, so every test that waits on
+the tank times out. Cross-engine differences are real in this project — the
+control column fits exactly at 1000px in all three and each one sizes form
+controls differently — so `npm run test:e2e` locally is the gate that catches
+them, not the badge.
+
 ## What a good change looks like
 
 - **Physics claims are checkable.** If you change the solver, say how you
