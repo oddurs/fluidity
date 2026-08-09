@@ -22,7 +22,7 @@ async function captureSupported(page: import("@playwright/test").Page) {
 }
 
 test.describe("clip capture", () => {
-  test("RECORD produces a decodable video of the right length and framing", async ({ page }) => {
+  test("RECORD produces a decodable video of the right length and framing", { tag: "@gpu" }, async ({ page }) => {
     await page.goto("/");
     await page.waitForTimeout(4000);
     test.skip(!(await captureSupported(page)), "no MediaRecorder in this engine");
@@ -69,7 +69,7 @@ test.describe("clip capture", () => {
     expect(meta.h).toBeGreaterThan(meta.w * 0.4);
   });
 
-  test("recording does not degrade the tank it is recording", async ({ page }) => {
+  test("recording does not degrade the tank it is recording", { tag: "@gpu" }, async ({ page }) => {
     // The compositor costs real time per frame. If the quality controller
     // reads that as GPU overload it drops the grid mid-clip, and the clip
     // records the degradation. It is suspended for the duration instead.
@@ -96,7 +96,7 @@ test.describe("clip capture", () => {
     expect(fpsDuring).toBeGreaterThan(15);
   });
 
-  test("the shortcut and the button are the same action", async ({ page }) => {
+  test("the shortcut and the button are the same action", { tag: "@gpu" }, async ({ page }) => {
     await page.goto("/");
     await page.waitForTimeout(4000);
     test.skip(!(await captureSupported(page)), "no MediaRecorder in this engine");

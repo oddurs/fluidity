@@ -19,14 +19,24 @@ npm test          # unit + end-to-end
 
 The end-to-end suite needs browsers: `npx playwright install`.
 
-**CI runs Chromium only, so run all three engines yourself before opening a
-PR.** GitHub's runners have no GPU. Chromium falls back to SwiftShader and
-solves the fluid fine, but Firefox and WebKit cannot rasterise WebGL2 fast
-enough there to so much as screenshot the canvas, so every test that waits on
-the tank times out. Cross-engine differences are real in this project — the
-control column fits exactly at 1000px in all three and each one sizes form
-controls differently — so `npm run test:e2e` locally is the gate that catches
-them, not the badge.
+**Run the full suite yourself before opening a PR — CI cannot.** GitHub's
+runners have no GPU. Firefox and WebKit cannot rasterise WebGL2 there at all,
+and Chromium manages it only through SwiftShader at roughly a fifth of
+hardware speed. That is quick enough to check the interface and the layout,
+and nowhere near quick enough for anything that waits on a wake to develop.
+
+So tests whose assertions need a real frame rate — dye brightness, shedding
+frequency, clip capture — carry the `@gpu` tag, and CI skips them:
+
+```bash
+npm run test:e2e         # everything, three engines — the actual gate
+npm run test:e2e:ci      # what CI runs: Chromium, no @gpu
+```
+
+Tag a new test `@gpu` if it measures the simulation rather than the page.
+Cross-engine differences are real here too — the control column fits exactly
+at 1000px in all three, and each engine sizes form controls differently — so
+the local run is what catches them, not the badge.
 
 ## What a good change looks like
 

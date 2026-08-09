@@ -24,17 +24,21 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Chromium only. GitHub's runners have no GPU: Chromium falls back to
-      # SwiftShader and runs the solver fine, but Firefox and WebKit cannot
-      # rasterise WebGL2 fast enough to even screenshot the canvas inside 90
-      # seconds, so every test that waits on the tank timed out. Those two
-      # engines are still verified — locally, with `npm run test:e2e`, before
-      # a release. See CONTRIBUTING.
+      # GitHub's runners have no GPU. Firefox and WebKit cannot rasterise
+      # WebGL2 there at all — they timed out screenshotting the canvas — and
+      # Chromium only manages it via SwiftShader, about five times slower than
+      # hardware. That is fast enough to check the interface and the layout,
+      # and not fast enough for anything that waits on a wake to develop: dye
+      # brightness, shedding frequency, a recorded clip with real motion in it.
+      #
+      # So CI runs Chromium minus the @gpu tag, and the tagged tests plus the
+      # other two engines are a local gate. See CONTRIBUTING. Testing what the
+      # runner can actually verify beats a red badge nobody reads.
       - name: Install browsers
         run: npx playwright install --with-deps chromium
 
       - name: End-to-end tests
-        run: npm run test:e2e:chromium
+        run: npm run test:e2e:ci
 
       - uses: actions/upload-artifact@v4
         if: failure()

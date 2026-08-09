@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { pressedIn, readout } from "./helpers";
 
 test.describe("interface", () => {
-  test("a TRY IT action drives the solver and shows what it changed", async ({ page }) => {
+  test("a TRY IT action drives the solver and shows what it changed", { tag: "@gpu" }, async ({ page }) => {
     await page.goto("/");
     await page.locator("#sec-01").scrollIntoViewIfNeeded();
     await page.getByRole("button", { name: "RUN: FROZEN INK" }).click();

@@ -23,7 +23,7 @@ test.describe("solver", () => {
     expect(errors).toEqual([]);
   });
 
-  test("dye keeps its colour instead of blowing out to white", async ({ page }) => {
+  test("dye keeps its colour instead of blowing out to white", { tag: "@gpu" }, async ({ page }) => {
     // Bloom stacks on top of already-dense dye. Tuned too hot, the eleven
     // streaklines bleed into one pale sheet and the palette is gone.
     await page.goto("/");
@@ -33,7 +33,7 @@ test.describe("solver", () => {
     expect(saturation).toBeGreaterThan(0.35);
   });
 
-  test("dye is vivid, not washed out", async ({ page }) => {
+  test("dye is vivid, not washed out", { tag: "@gpu" }, async ({ page }) => {
     // Opening the tunnel outlet once cut steady-state dye by 62% because it
     // now leaves the domain instead of accumulating. Nothing caught it.
     await page.goto("/");
@@ -43,7 +43,7 @@ test.describe("solver", () => {
     expect(mean).toBeLessThan(115);
   });
 
-  test("flow reaches the outlet instead of stalling before it", async ({ page }) => {
+  test("flow reaches the outlet instead of stalling before it", { tag: "@gpu" }, async ({ page }) => {
     // The divergence shader once reflected at every domain edge, so the
     // tunnel was a sealed box and a dead band formed short of the right edge.
     await page.goto("/");
@@ -53,7 +53,7 @@ test.describe("solver", () => {
     expect(edge / approach).toBeGreaterThan(0.6);
   });
 
-  test("shedding frequency agrees with the Strouhal number", async ({ page }) => {
+  test("shedding frequency agrees with the Strouhal number", { tag: "@gpu" }, async ({ page }) => {
     // Twenty seconds of settling plus a polled estimate does not fit the
     // default budget when the suite is loading the machine.
     test.slow();
@@ -114,7 +114,7 @@ test.describe("solver", () => {
     expect(Math.abs(measured - predicted) / predicted).toBeLessThan(0.35);
   });
 
-  test("recovers from a lost GPU context", async ({ page, browserName }) => {
+  test("recovers from a lost GPU context", { tag: "@gpu" }, async ({ page, browserName }) => {
     test.skip(browserName !== "chromium", "WEBGL_lose_context is driven reliably only here");
     await page.goto("/");
     await page.waitForTimeout(6000);

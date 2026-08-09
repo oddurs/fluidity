@@ -58,7 +58,7 @@ test.describe("keyboard control of the tank", () => {
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(before);
   });
 
-  test("the tank describes itself in words", async ({ page }) => {
+  test("the tank describes itself in words", { tag: "@gpu" }, async ({ page }) => {
     await page.goto("/");
     // Long enough for the probe trace to fill and a frequency to be measured.
     await page.waitForTimeout(16_000);
