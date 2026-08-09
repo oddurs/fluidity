@@ -3,6 +3,7 @@
 // math onto a control in the panel above.
 
 import { Eq } from "./Eq";
+import { AdvectionFigure, StencilFigure } from "./Figures";
 import { TryIt } from "./TryIt";
 
 function Section({
@@ -173,6 +174,7 @@ export function Science() {
           where the fluid at that point came from, and go get it.
         </p>
         <Eq display n="03" tex="q^{\,n+1}(\mathbf{x}) \;=\; q^{\,n}\!\big(\mathbf{x} - \Delta t \,\mathbf{u}(\mathbf{x})\big)" />
+        <AdvectionFigure />
         <p>
           Since we only ever <em>sample</em> existing values (with bilinear interpolation
           between grid cells), no value can ever exceed what is already there. The scheme is
@@ -251,6 +253,7 @@ export function Science() {
           n="06"
           tex="p^{\,k+1}_{i,j} \;=\; \frac{p^{\,k}_{i-1,j} + p^{\,k}_{i+1,j} + p^{\,k}_{i,j-1} + p^{\,k}_{i,j+1} - d_{i,j}}{4}"
         />
+        <StencilFigure />
         <p>
           Each sweep is one fullscreen GPU pass; the JACOBI ITER control is literally how
           many times it runs per frame. Then the gradient of the solved pressure is

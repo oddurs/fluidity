@@ -44,12 +44,17 @@ test.describe("interface", () => {
     expect(Number(await readout(page, "FPS"))).toBeGreaterThan(5);
   });
 
-  test("the simulation idles when scrolled out of sight", async ({ page }) => {
+  test("the simulation idles when there is no room to dock it", async ({ page }) => {
+    // On a wide screen the tank docks and keeps running; where it cannot,
+    // scrolling away must still stop the solver rather than burn a GPU on
+    // something nobody is looking at.
+    await page.setViewportSize({ width: 820, height: 1180 });
     await page.goto("/");
     await page.waitForTimeout(4000);
     expect(await readout(page, "STATE")).toBe("RUNNING");
     await page.locator("#sec-03").scrollIntoViewIfNeeded();
     await expect.poll(() => readout(page, "STATE")).toBe("IDLE");
+    await expect(page.locator(".canvasWrapDocked")).toHaveCount(0);
     await page.evaluate(() => window.scrollTo(0, 0));
     await expect.poll(() => readout(page, "STATE")).toBe("RUNNING");
   });
@@ -104,6 +109,39 @@ test.describe("interface", () => {
       await page.waitForTimeout(180);
     }
     expect(new Set(boxes).size).toBe(1);
+  });
+
+  test("the tank docks and keeps simulating while you read", async ({ page }) => {
+    // The essay is 14,000px long and every TRY IT acts on the solver. Without
+    // this you fire an action at something you cannot see.
+    await page.setViewportSize({ width: 1500, height: 1000 });
+    await page.goto("/");
+    await page.waitForTimeout(6000);
+    const grid = () => readout(page, "SIM GRID");
+    const before = await grid();
+
+    await page.locator("#sec-03").scrollIntoViewIfNeeded();
+    await expect(page.locator(".canvasWrapDocked")).toBeVisible();
+    await expect(page.locator(".dockBar")).toBeVisible();
+
+    // Docking scales the element; it must not resize the drawing buffer and
+    // restructure the flow every time you scroll past.
+    expect(await grid()).toBe(before);
+    await expect.poll(() => readout(page, "STATE")).toBe("RUNNING");
+
+    // And it is the way back.
+    await page.locator(".dockBar").click();
+    await expect(page.locator(".canvasWrapDocked")).toHaveCount(0);
+  });
+
+  test("the diagrams are present and labelled", async ({ page }) => {
+    await page.goto("/");
+    const figs = page.locator(".diagram");
+    await expect(figs).toHaveCount(2);
+    for (let i = 0; i < 2; i++) {
+      await expect(figs.nth(i).locator("svg")).toBeVisible();
+      await expect(figs.nth(i).locator(".diagramNum")).toContainText("FIG.");
+    }
   });
 
   test("every contents entry resolves to a section", async ({ page }) => {

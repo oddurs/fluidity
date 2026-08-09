@@ -292,6 +292,65 @@ body {
   container-name: tank;
 }
 
+/* The docked tank: fixed, scaled down, still simulating. Scaling rather than
+   resizing is deliberate — a real size change would rebuild the framebuffers
+   and restructure the flow every time you scrolled past. */
+.canvasWrapDocked {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 40;
+  transform: scale(0.27);
+  transform-origin: bottom right;
+  /* Outline, not border: with border-box sizing a border would shrink the
+     canvas inside and rebuild every framebuffer on dock. */
+  outline: 4px solid var(--machine-rule);
+}
+
+/* At 0.27 the instrument overlays would be three pixels tall. */
+.canvasWrapDocked .annotations,
+.canvasWrapDocked .stageHint {
+  display: none;
+}
+
+/* A caption strip across the foot of the thumbnail, the way a plate carries
+   its own. Floating text alone was unreadable over bright dye. */
+.dockBar {
+  position: fixed;
+  z-index: 41;
+  right: 22px;
+  bottom: 22px;
+  width: var(--dock-w, 300px);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  background: rgba(5, 5, 5, 0.9);
+  border: none;
+  border-top: 1px solid var(--machine-rule);
+  color: var(--machine-fg);
+  font-family: var(--mono);
+  cursor: pointer;
+}
+
+.dockFig {
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+}
+
+.dockBack {
+  font-size: var(--t-micro);
+  letter-spacing: 0.14em;
+  color: rgba(233, 231, 223, 0.55);
+}
+
+.dockBar:hover .dockBack {
+  color: var(--machine-fg);
+}
+
 /* Below this the hint and the figure caption share the same rule and
    collide; the caption yields, since the panel names the specimen. */
 @container tank (max-width: 660px) {
@@ -1425,6 +1484,100 @@ input[type="range"]::-moz-range-thumb {
 
 .sciBody p:last-child {
   margin-bottom: 0;
+}
+
+/* Diagrams. Same frame as an equation block — they are the same kind of
+   object: a statement the prose is pointing at. */
+.diagram {
+  border: var(--rule);
+  background: var(--concrete);
+  margin: 26px 0;
+}
+
+.diagram svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--paper);
+  border-bottom: 1px solid var(--ink);
+}
+
+.diagram figcaption {
+  padding: 11px 16px 13px;
+  font-size: var(--t-note);
+  line-height: var(--lh-tight);
+  max-width: 64ch;
+}
+
+.diagramNum {
+  display: block;
+  margin-bottom: 5px;
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: rgba(16, 16, 16, 0.5);
+}
+
+.dgGrid {
+  stroke: rgba(16, 16, 16, 0.22);
+  stroke-width: 1;
+}
+
+.dgCellSoft {
+  fill: rgba(16, 16, 16, 0.07);
+}
+
+.dgCellHot {
+  fill: var(--accent);
+}
+
+.dgArrow {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.dgHeadFill {
+  fill: var(--ink);
+}
+
+.dgTie {
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.dgDot {
+  fill: var(--ink);
+}
+
+.dgDotHot {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1.5;
+}
+
+.dgLabel {
+  font-family: var(--math);
+  font-size: 15px;
+  fill: var(--ink);
+}
+
+.dgLabelSm {
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: var(--ink);
+}
+
+.dgLabelOn {
+  fill: var(--paper);
+}
+
+.dgLabelDim {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  fill: rgba(16, 16, 16, 0.5);
 }
 
 .eqBlock {

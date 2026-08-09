@@ -27,6 +27,9 @@ export interface Telemetry {
   active: boolean;
 }
 
+/** Must match .canvasWrapDocked's transform in the stylesheet. */
+const DOCK_SCALE = 0.27;
+
 /** Probe trace: 160 samples at 40 Hz ≈ 4 s of history. */
 const TRACE_LEN = 160;
 const TRACE_INTERVAL_MS = 25;
@@ -61,6 +64,17 @@ export function Stage() {
     active: true,
   });
   const [glError, setGlError] = useState<string | null>(null);
+
+  /**
+   * Once the stage scrolls away, the tank docks to a corner and keeps
+   * running. The essay is 14,000px long and every TRY IT acts on the solver;
+   * without this you fire an action at something you cannot see, then have to
+   * scroll back and find your place again.
+   */
+  const [docked, setDocked] = useState(false);
+  // State, not a ref: this is read during render, and a ref read there is
+  // unsound when a render can be discarded and replayed.
+  const [dockSize, setDockSize] = useState<{ w: number; h: number } | null>(null);
 
   // A lost GL context can be restored by the browser; bumping the generation
   // rebuilds the engine from scratch on the same canvas.
@@ -266,6 +280,32 @@ export function Stage() {
       canvas.removeEventListener("webglcontextlost", onLost);
       canvas.removeEventListener("webglcontextrestored", onRestored);
     };
+  }, []);
+
+  // Dock the tank when the stage leaves the viewport. The element keeps its
+  // measured size and is scaled down, so the drawing buffer never changes and
+  // the simulation is not disturbed by docking.
+  useEffect(() => {
+    const wrap = canvasRef.current?.parentElement;
+    const stage = wrap?.parentElement;
+    if (!wrap || !stage) return;
+    // Below this the thumbnail would cover the text it is meant to accompany.
+    const roomy = () => window.innerWidth >= 900 && window.innerHeight >= 560;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const shouldDock = !entry.isIntersecting && roomy();
+        if (shouldDock) {
+          const r = wrap.getBoundingClientRect();
+          // Exact, not rounded: half a pixel of difference changes the
+          // canvas client size and rebuilds every framebuffer on dock.
+          setDockSize({ w: r.width, h: r.height });
+        }
+        setDocked(shouldDock);
+      },
+      { threshold: 0 },
+    );
+    observer.observe(stage);
+    return () => observer.disconnect();
   }, []);
 
   // Idle when the tab is hidden or the stage is scrolled out of view.
@@ -792,7 +832,10 @@ export function Stage() {
 
   return (
     <section className="stage" aria-label="Fluid simulation playground">
-      <div className="canvasWrap">
+      <div
+        className={`canvasWrap${docked ? " canvasWrapDocked" : ""}`}
+        style={docked && dockSize ? { width: dockSize.w, height: dockSize.h } : undefined}
+      >
         {glError ? (
           <div className="glError" role="alert">
             <p className="glErrorTitle">SOLVER OFFLINE</p>
@@ -866,6 +909,22 @@ export function Stage() {
           </div>
         )}
       </div>
+      {docked && (
+        <button
+          type="button"
+          className="dockBar"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          style={
+            {
+              "--dock-w": `${(dockSize?.w ?? 0) * DOCK_SCALE}px`,
+            } as React.CSSProperties
+          }
+        >
+          <span className="dockFig">{scenario.name}</span>
+          <span className="dockBack">RETURN TO THE TANK ↑</span>
+        </button>
+      )}
+
       <ControlPanel
         scenarios={SCENARIOS}
         activeScenario={scenario}
