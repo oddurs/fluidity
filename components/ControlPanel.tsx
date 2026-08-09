@@ -7,7 +7,6 @@ import type { SimParams, ViewMode } from "@/lib/fluid/engine";
 import { type BoundedParam, PARAM_BOUNDS } from "@/lib/fluid/params";
 import type { Scenario } from "@/lib/fluid/scenarios";
 import { Info } from "./Info";
-import { Sym } from "./Sym";
 import type { Telemetry } from "./Stage";
 
 const VIEW_MODES: { id: ViewMode; label: string }[] = [
@@ -147,12 +146,7 @@ export function ControlPanel({
           >
             <span className="sliderLabel">
               {s.label}
-              {s.sym && (
-                <>
-                  {" "}
-                  <Sym>{s.sym}</Sym>
-                </>
-              )}
+              {s.sym && <span className="sliderSym"> {s.sym}</span>}
               <Info term={s.sym ? `${s.label} ${s.sym}` : s.label}>{s.info}</Info>
             </span>
             <input

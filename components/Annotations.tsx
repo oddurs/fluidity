@@ -142,7 +142,7 @@ export function Annotations({
 
       {windSpeed > 0 && (
         <span className="annoTag inletTag">
-          <Sym>U∞</Sym> ⟶ {Math.round(windSpeed)} TX/S
+          U<Sym>∞</Sym> ⟶ {Math.round(windSpeed)} TX/S
           <Info term="U∞ — freestream velocity">
             The speed of the undisturbed flow entering the tunnel, before it
             meets anything. The ∞ means &ldquo;far away&rdquo;. It is a fixed
@@ -173,7 +173,7 @@ export function Annotations({
 
       {hasAngle && (
         <span className="annoTag" style={{ position: "absolute", left: ox + 10, top: oy - rPx - 26 }}>
-          <Sym>α</Sym> = {Math.round(attackAngleDeg)}°
+          α = {Math.round(attackAngleDeg)}°
           <Info term="α — angle of attack">
             The tilt between the wing section and the oncoming flow. This
             section is symmetric, so at 0° it makes no lift at all; tilt it and
@@ -217,19 +217,19 @@ export function Annotations({
             </div>
             <dl className="probeGrid">
               <div>
-                <dt><Sym>|u|</Sym></dt>
+                <dt>|u|</dt>
                 <dd>{speed.toFixed(0)}</dd>
               </div>
               <div>
-                <dt><Sym>p</Sym></dt>
+                <dt>p</dt>
                 <dd>{fmt(reading.p, 1)}</dd>
               </div>
               <div>
-                <dt><Sym>ω</Sym></dt>
+                <dt>ω</dt>
                 <dd>{fmt(reading.curl, 1)}</dd>
               </div>
               <div>
-                <dt><Sym>T</Sym></dt>
+                <dt>T</dt>
                 <dd>{fmt(reading.T, 1)}</dd>
               </div>
             </dl>
