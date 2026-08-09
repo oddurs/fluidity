@@ -1,36 +1,105 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FLUIDITY
 
-## Getting Started
+A wind-tunnel test facility that happens to run in a browser.
 
-First, run the development server:
+Seven live fluid-dynamics experiments — a Kármán vortex street, a wing at angle
+of attack, buoyant plumes, the Rayleigh–Taylor instability — solved on your GPU
+at 60+ frames per second, with the mathematics explained equation by equation
+next to the thing the equation governs.
+
+![The Kármán vortex street rendered in FLUIDITY](./app/opengraph-image.png)
+
+**[Open the simulation →](https://oddurs.github.io/fluidity/)**
+
+---
+
+## What it actually is
+
+The solver is Jos Stam's *Stable Fluids* method, written from scratch as WebGL2
+fragment shaders — no physics library, no fluid framework. Every field
+(velocity, pressure, divergence, curl, temperature, dye) is a half-float
+texture, and every step of the simulation is one fullscreen shader pass over it.
+About thirty passes per frame.
+
+Per frame, in the order the sections of the essay are written:
+
+1. **Wind** — freestream forcing at the tunnel inlet
+2. **Buoyancy** — temperature exerts a vertical force (Boussinesq)
+3. **Curl + confinement** — measure vorticity, then reinforce what the grid ate
+4. **Divergence → Jacobi × N → project** — solve ∇²p = ∇·u and subtract ∇p
+5. **Advect** — velocity carries itself, then the heat, then the dye
+
+You can X-ray any of those fields while it runs, drag the obstacle through the
+flow, park a probe anywhere to read live values, and hear the vortex shedding as
+an aeolian tone whose pitch is measured from the pressure trace rather than
+faked.
+
+### It is honest about what it is not
+
+The essay has a section called **What this gets wrong**, because a demo that
+only tells you what it does well is selling something. The viscosity is an
+accident of the grid rather than a material constant, so there is no
+controllable Reynolds number. Vorticity confinement appears in no physical law.
+It is two-dimensional, and 2D turbulence is a genuinely different phenomenon
+from 3D rather than a simplification of it. Stam's paper is titled *Stable*
+Fluids, not *Accurate* ones.
+
+## Running it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open <http://localhost:3000>. You need a browser with WebGL2 and
+`EXT_color_buffer_float`, which is every current desktop and mobile browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tests
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm test              # unit + end-to-end
+npm run test:unit     # pure logic, no browser, no dependencies
+npm run test:e2e      # Chromium, WebKit and Firefox
+```
 
-## Learn More
+Unit tests run on Node's built-in runner against the TypeScript sources
+directly — no build step and no test framework. The end-to-end suite asserts
+physical behaviour rather than pixels: that flow reaches the outlet instead of
+stalling before it, that the measured shedding frequency agrees with the
+Strouhal number, that a lost GPU context recovers, that the dye keeps its colour
+instead of blowing out to white. Each test names a bug that actually shipped.
 
-To learn more about Next.js, take a look at the following resources:
+## Layout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+app/            Next.js routes, global stylesheet, favicon and share card
+components/     Stage (canvas + render loop), ControlPanel, Annotations, Science
+lib/fluid/      The solver and everything it needs
+  shaders.ts      every GLSL program
+  engine.ts       the FluidEngine: framebuffers, passes, the frame
+  scenarios.ts    the seven experiments
+  colormaps.ts    perceptually-uniform ramps and named inks
+  quality.ts      adaptive resolution
+  tone.ts         shedding-frequency estimation and the aeolian tone
+e2e/            Playwright specs
+DESIGN.md       the design system, and the reasoning behind it
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`DESIGN.md` is worth reading before changing anything visual. It records the
+decisions and, more usefully, the ones that were tried and rejected — why the
+dye ramp keeps both limbs in the same half of the colour wheel, why the
+instrument is dark, why motion has to name its job.
 
-## Deploy on Vercel
+## Credits
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Jos Stam — *Stable Fluids*, SIGGRAPH 1999. The method.
+- Ronald Fedkiw, Jos Stam, Henrik Wann Jensen — *Visual Simulation of Smoke*,
+  SIGGRAPH 2001. Vorticity confinement.
+- Mark Harris — *Fast Fluid Dynamics Simulation on the GPU*, GPU Gems ch. 38.
+- Pavel Dobryakov — [WebGL-Fluid-Simulation](https://github.com/PavelDoGreat/WebGL-Fluid-Simulation),
+  whose GPU formulation this solver follows.
+- Nathaniel Smith and Stéfan van der Walt — the perceptually-uniform colormaps.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Licence
+
+[MIT](./LICENSE).

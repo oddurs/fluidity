@@ -1,24 +1,55 @@
 {
   "name": "fluidity",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
+  "description": "A wind-tunnel test facility that happens to run in a browser: seven live fluid-dynamics experiments solved on the GPU, with the mathematics explained.",
+  "license": "MIT",
+  "homepage": "https://oddurs.github.io/fluidity/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oddurs/fluidity.git"
+  },
+  "bugs": {
+    "url": "https://github.com/oddurs/fluidity/issues"
+  },
+  "keywords": [
+    "fluid-dynamics",
+    "navier-stokes",
+    "webgl2",
+    "simulation",
+    "visualization",
+    "physics",
+    "nextjs"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node --test \"lib/**/*.test.ts\"",
+    "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --project=chromium"
   },
   "dependencies": {
+    "katex": "^0.18.1",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/katex": "^0.16.8",
     "@types/node": "^20",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
+    "pngjs": "^7.0.0",
     "typescript": "^5"
   }
 }

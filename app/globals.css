@@ -1,49 +1,1429 @@
+/* FLUIDITY — a dark instrument around a luminous core.
+   The machine runs black so the simulation is the only lit thing on screen;
+   the document below is paper, because it is for reading. */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --concrete: #d6d3ca;
+  --paper: #e9e7df;
+  --ink: #101010;
+  --accent: #ff4400;
+  --void: #050505;
+  --rule: 2px solid var(--ink);
+  --panel-w: 340px;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+  /* The instrument. A concrete panel beside a black tank was brighter than
+     the fluid itself, and the eye went to the chrome instead of the physics. */
+  --machine-bg: #0b0b0b;
+  --machine-deep: #050505;
+  --machine-fg: #e9e7df;
+  --machine-rule: rgba(233, 231, 223, 0.26);
+  --machine-dim: rgba(233, 231, 223, 0.46);
+  --machine-hair: rgba(233, 231, 223, 0.14);
 
-html {
-  height: 100%;
-}
+  --serif: var(--font-source-serif), Charter, "Iowan Old Style", Georgia, serif;
+  --display: var(--font-archivo-black), "Arial Black", sans-serif;
+  --mono: var(--font-plex-mono), "Courier New", monospace;
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
+  /* Type scale.
+     The instrument is fixed in px — it is a control surface, and its
+     labels must hold their grid regardless of browser font settings.
+     The document is set in rem so it scales with the reader's preference. */
+  --t-micro: 9px;
+  --t-tiny: 10px;
+  --t-small: 11px;
+  --t-ui: 12px;
+  --t-ui-lg: 13px;
 
-body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --t-body: 1.0625rem; /* 17px */
+  --t-note: 0.9375rem; /* 15px — TRY IT, loop list */
+  --t-fine: 0.8125rem; /* 13px — references */
+
+  --lh-body: 1.62;
+  --lh-tight: 1.45;
+
+  /* Tracking widens as size drops, so small mono keeps its color. */
+  --tr-micro: 0.14em;
+  --tr-label: 0.14em;
+  --tr-ui: 0.06em;
 }
 
 * {
   box-sizing: border-box;
-  padding: 0;
   margin: 0;
+  padding: 0;
 }
 
-a {
-  color: inherit;
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--concrete);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  -webkit-font-smoothing: antialiased;
+  /* Lining, tabular figures: this document is full of numbers that sit in
+     running prose, and old-style figures would bounce against the caps. */
+  font-variant-numeric: lining-nums;
+  text-rendering: optimizeLegibility;
+}
+
+/* The instrument speaks entirely in mono. */
+.panel {
+  font-family: var(--mono);
+  /* The document's generous leading is wrong for a control surface, and
+     inheriting it costs the panel its exact fit. */
+  line-height: 1.4;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- the instrument's nameplate ---------- */
+
+.panelMark {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 13px 16px 11px;
+  border-bottom: 1px solid var(--machine-hair);
+}
+
+.markWord {
+  font-family: var(--display);
+  font-size: 19px;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: var(--machine-fg);
+}
+
+.markTag {
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.14em;
+  line-height: 1;
+  color: var(--machine-dim);
+}
+
+/* ---------- stage ---------- */
+
+.stage {
+  display: grid;
+  grid-template-columns: 1fr var(--panel-w);
+  /* vh first for browsers without dvh (iOS < 15.4); dvh wins where supported
+     so the address bar collapsing does not crop the stage. */
+  height: 100vh;
+  height: 100dvh;
+  min-height: 480px;
+  border-bottom: 2px solid var(--machine-rule);
+}
+
+/* Short viewports — a phone held sideways. The min-height would push the
+   controls off-screen, and the full-width panel is not affordable. */
+@media (max-height: 560px) {
+  :root {
+    --panel-w: 292px;
+  }
+
+  .stage {
+    min-height: 0;
+  }
+}
+
+.canvasWrap {
+  position: relative;
+  background: var(--void);
+  overflow: hidden;
+  border-right: 1px solid var(--machine-rule);
+  /* The overlays crowd each other according to how wide the *test section*
+     is, which is not the same as the viewport: a landscape phone has a wide
+     window and a narrow canvas. Query the container, not the screen. */
+  container-type: inline-size;
+  container-name: tank;
+}
+
+/* Below this the hint and the figure caption share the same rule and
+   collide; the caption yields, since the panel names the specimen. */
+@container tank (max-width: 660px) {
+  .figLabel {
+    display: none;
+  }
+}
+
+@container tank (max-width: 560px) {
+  .stageHint {
+    left: 26px;
+    font-size: var(--t-tiny);
+    letter-spacing: 0.1em;
+  }
+}
+
+
+.fluidCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Own every gesture: without this a drag scrolls or zooms the page
+     instead of stirring the fluid. */
+  touch-action: none;
+  cursor: crosshair;
+  /* iOS otherwise raises the callout menu and a selection on long press,
+     which lands in the middle of a slow drag through the tank. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The cylinder and the probe are movable, and the cursor is the only place
+   that can say so before you try. */
+.fluidCanvas[data-grab="obstacle"],
+.fluidCanvas[data-grab="probe"] {
+  cursor: grab;
+}
+
+.fluidCanvas[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+/* A mark, not a billboard. It was set at 13cqw and swallowed a third of the
+   tank; the simulation is the thing worth looking at. */
+.stageTitle {
+  position: absolute;
+  left: 26px;
+  bottom: 22px;
+  font-family: var(--display);
+  font-size: clamp(30px, 6.4cqw, 82px);
+  line-height: 0.84;
+  letter-spacing: -0.025em;
+  color: #fff;
+  mix-blend-mode: difference;
+  pointer-events: none;
+  user-select: none;
+}
+
+.stageTagline {
+  display: block;
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: var(--t-tiny);
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  line-height: 1;
+  opacity: 0.62;
+}
+
+.stageHint {
+  position: absolute;
+  top: 14px;
+  left: 32px;
+  font-family: var(--mono);
+  font-size: var(--t-small);
+  letter-spacing: var(--tr-label);
+  color: #fff;
+  mix-blend-mode: difference;
+  pointer-events: none;
+}
+
+/* Lab-report annotations */
+
+.annotations {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--mono);
+}
+
+/* Registration marks — corner ticks framing the test section. */
+.regMark {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: rgba(255, 255, 255, 0.32);
+  border-style: solid;
+  border-width: 0;
+}
+
+.regTL {
+  top: 10px;
+  left: 10px;
+  border-top-width: 1px;
+  border-left-width: 1px;
+}
+
+.regTR {
+  top: 10px;
+  right: 10px;
+  border-top-width: 1px;
+  border-right-width: 1px;
+}
+
+.regBL {
+  bottom: 10px;
+  left: 10px;
+  border-bottom-width: 1px;
+  border-left-width: 1px;
+}
+
+.regBR {
+  bottom: 10px;
+  right: 10px;
+  border-bottom-width: 1px;
+  border-right-width: 1px;
+}
+
+.figLabel {
+  position: absolute;
+  top: 14px;
+  right: 32px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.annoTag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  background: rgba(5, 5, 5, 0.78);
+  color: var(--paper);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-left: 3px solid var(--accent);
+  padding: 3px 6px;
+  white-space: nowrap;
+}
+
+.inletTag {
+  position: absolute;
+  left: 16px;
+  top: 38%;
+}
+
+.dimLine {
+  position: absolute;
+  width: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.55);
+}
+
+.dimLine::before,
+.dimLine::after {
+  content: "";
+  position: absolute;
+  left: -5px;
+  width: 11px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.dimLine::before {
+  top: 0;
+}
+
+.dimLine::after {
+  bottom: 0;
+}
+
+.dimLine .annoTag {
+  position: absolute;
+  left: -34px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.probeHairV {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.probeHairH {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.probeSquare {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--accent);
+  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out;
+}
+
+.probeSquareHot {
+  transform: scale(1.5);
+  box-shadow: 0 0 0 1px rgba(255, 68, 0, 0.4);
+}
+
+.probeTag {
+  position: absolute;
+  line-height: 1.7;
+}
+
+/* Pressure trace: one number cannot show that pressure oscillates. */
+.sparkline {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  overflow: visible;
+}
+
+.probeTag {
+  min-width: 196px;
+}
+
+.sparkZero {
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.sparkLine {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.probeAxis {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--t-micro);
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.probeTitle {
+  display: block;
+  color: var(--accent);
+}
+
+/* Capture confirmations + keyboard legend */
+
+.flashHold {
+  border-color: var(--paper);
+}
+
+.flash {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  padding: 6px 14px;
+  border: 2px solid var(--ink);
+  pointer-events: none;
+  animation: flashIn 0.18s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes flashIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.keysCard {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--void);
+  color: var(--paper);
+  border: 2px solid var(--paper);
+  border-left: 12px solid var(--accent);
+  padding: 18px 20px;
+  font-family: var(--mono);
+  min-width: 300px;
+}
+
+.keysTitle {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.keysList div {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.keysList div:last-child {
+  border-bottom: none;
+}
+
+.keysList dt {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.keysList dd {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* AUTO.PILOT caption */
+
+.tourCaption {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  max-width: min(52ch, 62%);
+  background: var(--void);
+  color: var(--paper);
+  border: 2px solid var(--paper);
+  border-left: 12px solid var(--accent);
+  padding: 12px 14px;
+  font-family: var(--mono);
+  pointer-events: none;
+}
+
+.tourStep {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.tourCaption p {
+  font-size: 12px;
+  line-height: 1.55;
+  letter-spacing: 0.04em;
+  margin: 0 0 12px;
+}
+
+.tourProgress {
+  height: 4px;
+  width: 0;
+  background: var(--accent);
+  animation: tourFill linear forwards;
+}
+
+@keyframes tourFill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.glError {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px;
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 14px;
+  max-width: 60ch;
+}
+
+.glErrorTitle {
+  font-family: var(--display);
+  font-size: 28px;
+  color: var(--accent);
+}
+
+/* ---------- control panel ---------- */
+
+.panel {
+  background: var(--machine-bg);
+  color: var(--machine-fg);
+  display: flex;
+  flex-direction: column;
+
+  /* Scrolling the panel must never chain into the document behind it —
+     hitting the end of the control column and having the whole page take
+     off is the worst thing this layout can do. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  /* Reserve the gutter so the scrollbar appearing (a longer scenario blurb,
+     a taller viewport) cannot shift the controls sideways. */
+  scrollbar-gutter: stable;
+
+  /* Match the chrome: a square ink thumb on concrete, no rounding. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--machine-rule) var(--machine-bg);
+}
+
+.panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.panel::-webkit-scrollbar-track {
+  background: var(--machine-bg);
+  border-left: 1px solid var(--machine-hair);
+}
+
+.panel::-webkit-scrollbar-thumb {
+  background: var(--machine-rule);
+  border: 2px solid var(--machine-bg);
+}
+
+.panel::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Entrance: the panel assembles itself block by block, like instruments
+   coming online. One sequence, on load, never repeated. */
+/* The bottom padding carries a couple of pixels of slack so the exact fit
+   survives engines that size form controls slightly differently. */
+.panelBlock {
+  /* Without this the flexible wordmark block below steals height from the
+     controls and their rows collide. */
+  flex-shrink: 0;
+  padding: 12px 16px 11px;
+  border-bottom: 1px solid var(--machine-hair);
+  animation: boot 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.panelBlock:nth-child(1) { animation-delay: 0.10s; }
+.panelBlock:nth-child(2) { animation-delay: 0.18s; }
+.panelBlock:nth-child(3) { animation-delay: 0.26s; }
+.panelBlock:nth-child(4) { animation-delay: 0.34s; }
+.panelBlock:nth-child(5) { animation-delay: 0.42s; }
+
+@keyframes boot {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.markWord {
+  animation: titleIn 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.28s backwards;
+}
+
+@keyframes titleIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.panelLabel {
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: var(--tr-label);
+  margin-bottom: 7px;
+}
+
+.panelLabel::before {
+  content: "■ ";
+  color: var(--accent);
+}
+
+.btn {
+  font-family: var(--mono);
+  font-size: var(--t-ui);
+  font-weight: 600;
+  letter-spacing: var(--tr-ui);
+  border: 1px solid var(--machine-rule);
+  background: transparent;
+  color: var(--machine-fg);
+  padding: 9px 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: none;
+}
+
+.btn:hover {
+  background: rgba(233, 231, 223, 0.12);
+  border-color: var(--machine-fg);
+}
+
+.btn:active {
+  transform: translate(2px, 2px);
+}
+
+.btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--ink);
+}
+
+.scenarioGrid,
+.viewGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.scenarioBtn {
+  position: relative;
+}
+
+.scenarioNum {
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  font-size: var(--t-micro);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  opacity: 0.42;
+}
+
+.scenarioBtn[aria-pressed="true"] .scenarioNum {
+  opacity: 0.7;
+}
+
+.scenarioGrid .btn,
+.viewGrid .btn {
+  margin: 0 -1px -1px 0;
+}
+
+/* The flagship scenario gets the full row; so does the odd view button. */
+.scenarioGrid .btn:first-child,
+.viewGrid .btn:last-child {
+  grid-column: span 2;
+}
+
+/* The blurb is instrument text, not document prose — mono, and set a
+   little tighter so two lines fit the reserved space. */
+.scenarioBlurb {
+  margin-top: 9px;
+  font-size: var(--t-small);
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  min-height: 3em;
+  color: var(--machine-dim);
+}
+
+/* sliders */
+
+.sliderRow {
+  display: grid;
+  grid-template-columns: 92px 1fr 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  /* Negative inset so the change flash can bleed past the row's text box
+     without shifting the layout. */
+  margin: 0 -6px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+/* A TRY IT action scrolls you up to the stage; this is what tells you which
+   control it moved. Two beats, then out. */
+.sliderRowChanged {
+  animation: paramChanged 1.4s ease-out;
+}
+
+@keyframes paramChanged {
+  0%,
+  100% {
+    background: transparent;
+  }
+  8%,
+  38% {
+    background: rgba(255, 68, 0, 0.32);
+  }
+  22% {
+    background: rgba(255, 68, 0, 0.1);
+  }
+  70% {
+    background: rgba(255, 68, 0, 0.14);
+  }
+}
+
+.sliderLabel {
+  font-size: var(--t-tiny);
+  font-weight: 600;
+  letter-spacing: var(--tr-ui);
+  color: var(--machine-dim);
+}
+
+.sliderValue {
+  font-size: var(--t-small);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  cursor: ew-resize;
+}
+
+/* Filled track: the set portion reads orange, like a gauge. --fill is set
+   inline per slider from the current value. */
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--fill, 0%),
+    var(--machine-rule) var(--fill, 0%)
+  );
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -5px;
+  background: var(--accent);
+  border: none;
+  border-radius: 0;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: var(--machine-rule);
+}
+
+input[type="range"]::-moz-range-progress {
+  height: 2px;
+  background: var(--accent);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  border: none;
+  border-radius: 0;
+}
+
+/* actions */
+
+.actionRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.actionRow .btn {
+  margin: 0 -1px -1px 0;
+}
+
+/* Transient actions sit three-up; modes and exports pair off below. */
+.actionRow3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+
+/* telemetry — same signal language as the canvas annotations:
+   void ground, paper values, orange for the live channel labels. */
+
+.telemetry {
+  margin-top: auto;
+  background: var(--machine-deep);
+  border-top: 1px solid var(--machine-hair);
+  border-bottom: none;
+}
+
+
+
+.readouts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+  /* Values change every 250ms; tabular figures stop the columns dancing. */
+  font-variant-numeric: tabular-nums;
+}
+
+.readouts div {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--machine-hair);
+  padding-bottom: 3px;
+}
+
+.readouts dt {
+  font-size: var(--t-tiny);
+  letter-spacing: 0.1em;
+  color: var(--machine-dim);
+}
+
+.readouts dd {
+  font-size: var(--t-small);
+  font-weight: 600;
+}
+
+/* ---------- scroll cue ---------- */
+
+/* Scroll cue: a ticker carrying the equations themselves. The marquee is
+   the one honest place for motion here — it reads as a running instrument
+   feed, not decoration. */
+
+.scrollCue {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  padding: 13px 0;
+  border-bottom: var(--rule);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  color: var(--ink);
   text-decoration: none;
+  background: var(--accent);
+  white-space: nowrap;
 }
 
-@media (prefers-color-scheme: dark) {
+.scrollCue:hover {
+  background: var(--ink);
+  color: var(--accent);
+}
+
+.scrollCueTicker {
+  display: inline-block;
+  animation: tick 42s linear infinite;
+}
+
+.scrollCueRun em {
+  font-style: normal;
+  opacity: 0.55;
+  padding: 0 4px;
+}
+
+.scrollCueStatic {
+  display: none;
+  padding: 0 16px;
+}
+
+@keyframes tick {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-25%);
+  }
+}
+
+.scrollCue:hover .scrollCueTicker {
+  animation-play-state: paused;
+}
+
+/* ---------- the paper (science sections) ---------- */
+
+.paper {
+  background: var(--paper);
+}
+
+.paperIntro {
+  padding: 72px 24px;
+  border-bottom: var(--rule);
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.paperKicker {
+  font-family: var(--mono);
+  font-size: var(--t-ui);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  margin-bottom: 20px;
+}
+
+.paperKicker::before {
+  content: "■ ";
+  color: var(--accent);
+}
+
+.paperLede {
+  font-family: var(--display);
+  font-size: clamp(24px, 4vw, 44px);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  text-transform: uppercase;
+  max-width: 24ch;
+  text-wrap: balance;
+}
+
+/* Contents — a paper has one, and it gives eleven sections visible shape. */
+
+.contents {
+  margin-top: 44px;
+  border-top: var(--rule);
+  padding-top: 18px;
+}
+
+.contentsTitle {
+  font-family: var(--mono);
+  font-size: var(--t-tiny);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  margin-bottom: 10px;
+  color: rgba(16, 16, 16, 0.55);
+}
+
+.contents ol {
+  list-style: none;
+  max-width: 62ch;
+}
+
+.contents a {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 5px 0;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: var(--t-fine);
+}
+
+.contentsNum {
+  font-family: var(--mono);
+  font-size: var(--t-tiny);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: rgba(16, 16, 16, 0.5);
+}
+
+/* A leader rule, the way a printed contents page runs dots to the number. */
+.contentsRule {
+  flex: 1;
+  order: 3;
+  height: 1px;
+  background: rgba(16, 16, 16, 0.22);
+  transform: translateY(-3px);
+}
+
+.contentsName {
+  order: 2;
+}
+
+.contents a:hover .contentsName {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.contents a:hover .contentsNum {
+  color: var(--ink);
+}
+
+/* Field legend */
+
+.legend {
+  border: var(--rule);
+  background: var(--concrete);
+  margin: 26px 0;
+}
+
+.legendTitle {
+  font-family: var(--mono);
+  font-size: var(--t-tiny);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--ink);
+  /* Not prose: the prose measure would cut its rule short. */
+  max-width: none;
+}
+
+.legend dl div {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(16, 16, 16, 0.28);
+}
+
+.legend dl div:last-child {
+  border-bottom: none;
+}
+
+.legend dt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.legend dd {
+  font-size: var(--t-note);
+  line-height: var(--lh-tight);
+}
+
+.legendSwatch {
+  display: inline-flex;
+  border: 1px solid var(--ink);
+  flex-shrink: 0;
+}
+
+.legendSwatch i {
+  display: block;
+  width: 13px;
+  height: 15px;
+}
+
+.sci {
+  position: relative;
+  border-bottom: var(--rule);
+  scroll-margin-top: 16px;
+  overflow: hidden;
+}
+
+/* Ghost numeral: the section's position in the solver's execution order,
+   set at display scale and pushed to the page edge. */
+.sciGhost {
+  position: absolute;
+  top: -0.16em;
+  right: 2vw;
+  font-family: var(--display);
+  font-size: clamp(140px, 20vw, 300px);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+  opacity: 0.055;
+  pointer-events: none;
+  user-select: none;
+}
+
+.sciHead {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  padding: 28px 24px 0;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.sciBody {
+  position: relative;
+}
+
+.sciIndex {
+  font-family: var(--mono);
+  font-size: var(--t-ui-lg);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 4px 10px;
+  flex-shrink: 0;
+}
+
+.sciTitle {
+  font-family: var(--display);
+  font-size: clamp(22px, 3.2vw, 36px);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.sciBody {
+  padding: 24px 24px 44px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+/* 66ch is the comfortable ceiling for this size and leading; beyond it the
+   eye loses the line return. `pretty` keeps the last line from orphaning. */
+.sciBody p {
+  max-width: 66ch;
+  margin-bottom: 20px;
+  text-wrap: pretty;
+  hanging-punctuation: first last;
+}
+
+.sciBody em {
+  font-style: italic;
+}
+
+.sciBody strong {
+  font-weight: 600;
+}
+
+.sciBody p:last-child {
+  margin-bottom: 0;
+}
+
+.eqBlock {
+  position: relative;
+  border: var(--rule);
+  background: var(--concrete);
+  padding: 22px 16px;
+  margin: 24px 0;
+  font-size: 1.05em;
+}
+
+/* Equations scroll inside their own frame; the page never does. */
+.eqBlock > div {
+  overflow-x: auto;
+}
+
+.eqNum {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-family: var(--mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  opacity: 0.4;
+}
+
+/* KaTeX sets Computer Modern, a serif — it now belongs to the same
+   typographic world as the body text rather than interrupting it. Size is
+   nudged up because CM runs small against Source Serif at equal em. */
+.eqInline .katex {
+  font-size: 1.06em;
+}
+
+.loopList {
+  list-style: none;
+  margin: 24px 0;
+  border: var(--rule);
+  background: var(--concrete);
+}
+
+.loopList li {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ink);
+  font-size: var(--t-note);
+}
+
+.loopList li:last-child {
+  border-bottom: none;
+}
+
+.loopList strong {
+  font-family: var(--mono);
+  font-size: var(--t-ui);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  display: inline-block;
+  min-width: 130px;
+}
+
+.tryIt {
+  border: var(--rule);
+  border-left: 12px solid var(--accent);
+  background: var(--paper);
+  padding: 16px;
+  margin-top: 26px;
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+}
+
+.tryItLabel {
+  font-family: var(--mono);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: var(--tr-label);
+  background: var(--accent);
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
+
+.tryIt p {
+  font-size: var(--t-note);
+  line-height: var(--lh-tight);
+  margin: 0;
+  max-width: 60ch;
+  text-wrap: pretty;
+}
+
+.tryItBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tryItActions {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.tryBtn {
+  font-size: var(--t-small);
+  padding: 8px 12px;
+  margin: 0 -2px -2px 0;
+}
+
+.tryBtn:hover {
+  background: var(--accent);
+  color: var(--ink);
+}
+
+/* ---------- references ---------- */
+
+.refs {
+  padding: 44px 24px 64px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.refs ul {
+  list-style: none;
+  font-family: var(--mono);
+  font-size: var(--t-fine);
+}
+
+.refs li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ink);
+  max-width: 66ch;
+}
+
+.refsColophon {
+  margin-top: 32px;
+  font-family: var(--mono);
+  font-size: var(--t-small);
+  letter-spacing: 0.1em;
+  color: #555;
+}
+
+/* ---------- responsive ---------- */
+
+/* Stack only when narrow AND upright. Keying this on width alone put a
+   landscape phone into the stacked layout, where the canvas filled the
+   viewport and every control sat below the fold. */
+@media (max-width: 900px) and (orientation: portrait) {
+  .stage {
+    grid-template-columns: 1fr;
+    grid-template-rows: 58vh auto;
+    grid-template-rows: 58dvh auto;
+    height: auto;
+    min-height: 0;
+  }
+
+  .canvasWrap {
+    border-right: none;
+    border-bottom: var(--rule);
+    min-height: 320px;
+  }
+
+  .panel {
+    max-height: none;
+    /* Stacked, the panel is part of the page flow, so it must not trap the
+       scroll the way it does as a fixed side column. */
+    overflow-y: visible;
+    overscroll-behavior: auto;
+    scrollbar-gutter: auto;
+  }
+
+  .telemetry {
+    margin-top: 0;
+  }
+
+  .stageTitle {
+    left: 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  .sciHead {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 700px) {
+  /* The figure caption is handled by the tank container query above. */
+  .probeTag {
+    max-width: calc(100vw - 40px);
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
   html {
-    color-scheme: dark;
+    scroll-behavior: auto;
+  }
+
+  .btn:active {
+    transform: none;
+  }
+
+  .tourProgress {
+    animation: none;
+    width: 100%;
+  }
+
+  .scrollCueTicker {
+    display: none;
+  }
+
+  .scrollCueStatic {
+    display: block;
+  }
+
+  .panel .panelBlock,
+  .flash {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: translate(-50%, 0);
+  }
+
+  .panel .panelBlock {
+    transform: none !important;
+  }
+
+  /* The change flash still has to say which control moved, so it holds a
+     static highlight for the same duration instead of pulsing. */
+  .sliderRowChanged {
+    animation: none;
+    background: rgba(255, 68, 0, 0.22);
+  }
+
+  .probeSquare {
+    transition: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .tourCaption {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    max-width: none;
   }
 }
