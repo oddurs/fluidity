@@ -54,6 +54,25 @@ test.describe("interface", () => {
     await expect.poll(() => readout(page, "STATE")).toBe("RUNNING");
   });
 
+  test("the probe readout never resizes or jumps", async ({ page }) => {
+    // It reports four values that change ten times a second. Set as a
+    // run-on line, every changing digit — and every field that blinked in and
+    // out — resized the whole tag, so it shimmered constantly.
+    await page.goto("/");
+    await page.waitForTimeout(12_000);
+    const boxes: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      boxes.push(
+        await page.evaluate(() => {
+          const r = document.querySelector(".probeTag")!.getBoundingClientRect();
+          return [r.width, r.height, r.left, r.top].map(Math.round).join(",");
+        }),
+      );
+      await page.waitForTimeout(180);
+    }
+    expect(new Set(boxes).size).toBe(1);
+  });
+
   test("every contents entry resolves to a section", async ({ page }) => {
     await page.goto("/");
     const missing = await page.evaluate(() =>

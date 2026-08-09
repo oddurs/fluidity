@@ -1,5 +1,8 @@
 "use client";
 
+import { Info } from "./Info";
+import { Sym } from "./Sym";
+
 
 // The lab-report layer: measurement annotations drawn over the canvas in
 // the manner of a wind-tunnel technical report. Everything shown is read
@@ -35,7 +38,11 @@ export interface TraceView {
 }
 
 const TRACE_W = 176;
-const TRACE_H = 30;
+const TRACE_H = 28;
+
+/** The tag never resizes, so its footprint is known up front. */
+const PROBE_TAG_W = 206;
+const PROBE_TAG_H = 130;
 
 /**
  * The probe's pressure history as a trace. A single number cannot show that
@@ -134,7 +141,17 @@ export function Annotations({
       {fig && <span className="figLabel">{fig}</span>}
 
       {windSpeed > 0 && (
-        <span className="annoTag inletTag">U∞ ⟶ {Math.round(windSpeed)} TX/S</span>
+        <span className="annoTag inletTag">
+          <Sym>U∞</Sym> ⟶ {Math.round(windSpeed)} TX/S
+          <Info term="U∞ — freestream velocity">
+            The speed of the undisturbed flow entering the tunnel, before it
+            meets anything. The ∞ means &ldquo;far away&rdquo;. It is a fixed
+            inlet condition this scenario sets, not a measurement — the tunnel
+            is driven at this speed. Units are simulation texels per second:
+            grid cells, not metres. It is the U in the Reynolds number and in
+            the shedding rate f ≈ 0.2·U/D.
+          </Info>
+        </span>
       )}
 
       {isCircle && (
@@ -142,13 +159,26 @@ export function Annotations({
           className="dimLine"
           style={{ left: ox - rPx - 18, top: oy - rPx, height: 2 * rPx }}
         >
-          <span className="annoTag dimTag">D</span>
+          <span className="annoTag dimTag">
+            D
+            <Info term="D — cylinder diameter">
+              The width of the obstacle across the flow. It sets the length
+              scale for both dimensionless numbers on this page: the Reynolds
+              number Re = U·D/ν, and the shedding rate f ≈ 0.2·U/D — which is
+              why a thin wire whistles high and a thick cable moans low.
+            </Info>
+          </span>
         </div>
       )}
 
       {hasAngle && (
         <span className="annoTag" style={{ position: "absolute", left: ox + 10, top: oy - rPx - 26 }}>
-          α = {Math.round(attackAngleDeg)}°
+          <Sym>α</Sym> = {Math.round(attackAngleDeg)}°
+          <Info term="α — angle of attack">
+            The tilt between the wing section and the oncoming flow. This
+            section is symmetric, so at 0° it makes no lift at all; tilt it and
+            it turns the flow downward, and the flow pushes back.
+          </Info>
         </span>
       )}
 
@@ -160,20 +190,54 @@ export function Annotations({
             className={`probeSquare${probeHover ? " probeSquareHot" : ""}`}
             style={{ left: px - 5, top: py - 5 }}
           />
+          {/* Fixed width, fixed rows, right-aligned tabular values. Set as a
+              run-on line, every changing digit and every field that blinked in
+              and out resized the whole tag. It reports; it should not move. */}
           <div
-            className="annoTag probeTag"
+            className="probeTag"
             style={{
-              left: px + 12 + 200 > w ? px - 212 : px + 12,
-              top: py + 12 + 96 > h ? py - 108 : py + 12,
+              left: px + 14 + PROBE_TAG_W > w ? px - PROBE_TAG_W - 14 : px + 14,
+              top: py + 14 + PROBE_TAG_H > h ? py - PROBE_TAG_H - 14 : py + 14,
             }}
           >
-            <span className="probeTitle">PROBE ({probe.x.toFixed(2)}, {probe.y.toFixed(2)})</span>
-            |u| {speed.toFixed(0).padStart(3, "0")} · p {fmt(reading.p)} · ω {fmt(reading.curl, 1)}
-            {reading.T !== 0 && <> · T {fmt(reading.T)}</>}
+            <div className="probeHead">
+              <span>
+                PROBE
+                <Info term="The probe">
+                  A movable measurement point — drag it anywhere. It reads the
+                  solver&rsquo;s own fields where it sits: |u| flow speed, p
+                  pressure, ω rotation, T temperature. The trace below is its
+                  pressure over the last four seconds, and in a wake it
+                  oscillates once per shed vortex.
+                </Info>
+              </span>
+              <span className="probeCoord">
+                {probe.x.toFixed(2)}, {probe.y.toFixed(2)}
+              </span>
+            </div>
+            <dl className="probeGrid">
+              <div>
+                <dt><Sym>|u|</Sym></dt>
+                <dd>{speed.toFixed(0)}</dd>
+              </div>
+              <div>
+                <dt><Sym>p</Sym></dt>
+                <dd>{fmt(reading.p, 1)}</dd>
+              </div>
+              <div>
+                <dt><Sym>ω</Sym></dt>
+                <dd>{fmt(reading.curl, 1)}</dd>
+              </div>
+              <div>
+                <dt><Sym>T</Sym></dt>
+                <dd>{fmt(reading.T, 1)}</dd>
+              </div>
+            </dl>
             <Sparkline trace={trace} />
-            <span className="probeAxis">
-              PRESSURE · 4S{shedHz > 0 && <> · f {shedHz.toFixed(2)} HZ</>}
-            </span>
+            <div className="probeFoot">
+              <span>PRESSURE · 4S</span>
+              <span>{shedHz > 0 ? `${shedHz.toFixed(2)} HZ` : "—— HZ"}</span>
+            </div>
           </div>
         </>
       )}

@@ -20,9 +20,17 @@
   --machine-dim: rgba(233, 231, 223, 0.46);
   --machine-hair: rgba(233, 231, 223, 0.14);
 
-  --serif: var(--font-source-serif), Charter, "Iowan Old Style", Georgia, serif;
+  /* Maths glyphs fall through to KaTeX's own fonts.
+     The webfonts are subset to latin, so every Greek letter and operator in
+     the interface — ε, β, α, ω, ∞, ∇, ∂ — missed the subset and landed in
+     whatever the OS offered, at the wrong size, weight and baseline. KaTeX's
+     faces are already loaded for the equations, so routing symbols there
+     makes a control label and the equation it refers to render identically.
+     KaTeX_Math carries the italic variables; KaTeX_Main the operators. */
+  --math: "KaTeX_Math", "KaTeX_Main";
+  --serif: var(--font-source-serif), var(--math), Charter, "Iowan Old Style", Georgia, serif;
   --display: var(--font-archivo-black), "Arial Black", sans-serif;
-  --mono: var(--font-plex-mono), "Courier New", monospace;
+  --mono: var(--font-plex-mono), var(--math), ui-monospace, "Courier New", monospace;
 
   /* Type scale.
      The instrument is fixed in px — it is a control surface, and its
@@ -45,6 +53,84 @@
   --tr-micro: 0.14em;
   --tr-label: 0.14em;
   --tr-ui: 0.06em;
+}
+
+/* An (i) and the definition behind it. */
+.info {
+  position: relative;
+  display: inline-flex;
+  vertical-align: baseline;
+}
+
+.infoDot {
+  appearance: none;
+  margin-left: 5px;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.45;
+  font-family: var(--mono);
+  font-size: 8px;
+  line-height: 1;
+  font-style: italic;
+  cursor: help;
+  flex: none;
+}
+
+.infoDot:hover,
+.infoDot[aria-expanded="true"] {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.infoCard {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 9px);
+  left: -10px;
+  width: 258px;
+  padding: 10px 12px 11px;
+  background: var(--machine-deep);
+  color: var(--machine-fg);
+  border: 1px solid var(--machine-rule);
+  border-left: 3px solid var(--accent);
+  font-family: var(--mono);
+  font-size: var(--t-tiny);
+  font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  text-align: left;
+  white-space: normal;
+}
+
+.infoTerm {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+/* Near the right edge of the control column the card would overflow. */
+.sliderRow .infoCard {
+  left: auto;
+  right: -10px;
+}
+
+/* Maths glyphs, wherever they appear outside a rendered equation. */
+.sym {
+  font-family: var(--math);
+  /* KaTeX_Math is already italic by design; do not double it. */
+  font-style: normal;
+  /* KaTeX's faces run small against both Plex Mono and Source Serif. */
+  font-size: 1.08em;
+  letter-spacing: 0;
 }
 
 * {
@@ -241,8 +327,16 @@ body {
 .annotations {
   position: absolute;
   inset: 0;
+  /* The overlay must not intercept drags meant for the fluid. */
   pointer-events: none;
   font-family: var(--mono);
+}
+
+/* …except the definitions, which have to be clickable. Kept to the dot and
+   its card so the surrounding tag still lets a drag through. */
+.annotations .infoDot,
+.annotations .infoCard {
+  pointer-events: auto;
 }
 
 /* Registration marks — corner ticks framing the test section. */
@@ -347,7 +441,7 @@ body {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(233, 231, 223, 0.13);
 }
 
 .probeHairH {
@@ -355,41 +449,99 @@ body {
   left: 0;
   right: 0;
   height: 1px;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(233, 231, 223, 0.13);
 }
 
 .probeSquare {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  border: 2px solid var(--accent);
-  transition: transform 0.12s ease-out, box-shadow 0.12s ease-out;
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--accent);
+  transition: transform 0.14s ease-out;
 }
 
 .probeSquareHot {
-  transform: scale(1.5);
-  box-shadow: 0 0 0 1px rgba(255, 68, 0, 0.4);
+  transform: scale(1.4);
 }
 
+/* The probe readout. A supporting instrument: it reports continuously, so
+   it must be quiet, and it must not move. Fixed width and fixed rows mean a
+   changing value can never reflow the tag. */
 .probeTag {
   position: absolute;
-  line-height: 1.7;
+  box-sizing: border-box;
+  width: 206px;
+  padding: 8px 10px 9px;
+  background: rgba(5, 5, 5, 0.82);
+  border: 1px solid rgba(233, 231, 223, 0.22);
+  font-family: var(--mono);
+  /* Every digit the same width, so values change without shifting. */
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.probeHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  /* Supporting element: the only thing here that earns the accent is the
+     live trace. */
+  color: rgba(233, 231, 223, 0.62);
+  margin-bottom: 7px;
+}
+
+.probeCoord {
+  color: rgba(233, 231, 223, 0.4);
+  letter-spacing: 0.08em;
+}
+
+.probeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 12px;
+  margin-bottom: 2px;
+}
+
+.probeGrid div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.probeGrid dt {
+  font-size: var(--t-micro);
+  letter-spacing: 0.08em;
+  color: rgba(233, 231, 223, 0.4);
+}
+
+.probeGrid dd {
+  font-size: var(--t-small);
+  color: var(--paper);
+}
+
+.probeFoot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: var(--t-micro);
+  letter-spacing: 0.1em;
+  color: rgba(233, 231, 223, 0.34);
 }
 
 /* Pressure trace: one number cannot show that pressure oscillates. */
 .sparkline {
   display: block;
   width: 100%;
-  margin-top: 7px;
-  overflow: visible;
-}
-
-.probeTag {
-  min-width: 196px;
+  margin-top: 10px;
 }
 
 .sparkZero {
-  stroke: rgba(255, 255, 255, 0.22);
+  stroke: rgba(233, 231, 223, 0.18);
   stroke-width: 1;
   stroke-dasharray: 2 3;
 }
@@ -400,19 +552,6 @@ body {
   stroke-width: 1.5;
   stroke-linejoin: round;
   stroke-linecap: round;
-}
-
-.probeAxis {
-  display: block;
-  margin-top: 3px;
-  font-size: var(--t-micro);
-  letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.42);
-}
-
-.probeTitle {
-  display: block;
-  color: var(--accent);
 }
 
 /* Capture confirmations + keyboard legend */
@@ -660,7 +799,10 @@ body {
   color: var(--accent);
 }
 
-.btn {
+/* The instrument's controls: light-on-dark, scoped to the panel. These were
+   briefly unscoped, which made the document's TRY IT buttons paper-on-paper
+   and invisible until hovered. */
+.panel .btn {
   font-family: var(--mono);
   font-size: var(--t-ui);
   font-weight: 600;
@@ -674,9 +816,35 @@ body {
   transition: none;
 }
 
-.btn:hover {
+.panel .btn:hover {
   background: rgba(233, 231, 223, 0.12);
   border-color: var(--machine-fg);
+}
+
+.panel .btn[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+/* The document's controls: ink-on-paper, the brutalist original. */
+.btn {
+  font-family: var(--mono);
+  font-size: var(--t-ui);
+  font-weight: 600;
+  letter-spacing: var(--tr-ui);
+  border: var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  padding: 9px 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: none;
+}
+
+.btn:hover {
+  background: var(--ink);
+  color: var(--paper);
 }
 
 .btn:active {
@@ -1363,14 +1531,6 @@ input[type="range"]::-moz-range-thumb {
   .sciHead {
     flex-direction: column;
     gap: 12px;
-  }
-}
-
-@media (max-width: 700px) {
-  /* The figure caption is handled by the tank container query above. */
-  .probeTag {
-    max-width: calc(100vw - 40px);
-    white-space: normal;
   }
 }
 

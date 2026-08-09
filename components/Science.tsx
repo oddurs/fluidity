@@ -54,7 +54,7 @@ const FIELDS: { name: string; swatch: string[]; meaning: string }[] = [
   {
     name: "VELOCITY",
     swatch: ["#ff2d2d", "#2dff8a", "#2d8aff", "#ff2dd0"],
-    meaning: "The field 𝐮 itself. Hue is the direction of flow, brightness its speed.",
+    meaning: "The velocity field itself. Hue is the direction of flow, brightness its speed.",
   },
   {
     name: "PRESSURE",
@@ -64,12 +64,12 @@ const FIELDS: { name: string; swatch: string[]; meaning: string }[] = [
   {
     name: "CURL",
     swatch: ["#ffd91a", "#050505", "#bf33ff"],
-    meaning: "Local rotation ω. Yellow turns clockwise, purple counter-clockwise.",
+    meaning: "Local rotation. Yellow turns clockwise, purple counter-clockwise.",
   },
   {
     name: "HEAT",
     swatch: ["#ff6109", "#050505", "#4a8cff"],
-    meaning: "Temperature T. Ember is warm, ice is cold; it drives the flow only when β > 0.",
+    meaning: "Temperature. Ember is warm, ice is cold; it drives the flow only when buoyancy is on.",
   },
 ];
 

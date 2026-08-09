@@ -12,8 +12,9 @@ export default function Home() {
         <span className="scrollCueTicker" aria-hidden="true">
           {Array.from({ length: 4 }, (_, i) => (
             <span className="scrollCueRun" key={i}>
-              SCROLL FOR THE MATHEMATICS <em>▼</em> ∂u/∂t = −(u·∇)u − ∇p/ρ + ν∇²u + F{" "}
-              <em>▼</em> ∇·u = 0 <em>▼</em>{" "}
+              SCROLL FOR THE MATHEMATICS <em>▼</em>{" "}
+              <span className="sym">∂u/∂t = −(u·∇)u − ∇p/ρ + ν∇²u + F</span> <em>▼</em>{" "}
+              <span className="sym">∇·u = 0</span> <em>▼</em>{" "}
             </span>
           ))}
         </span>

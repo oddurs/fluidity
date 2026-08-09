@@ -6,6 +6,8 @@
 import type { SimParams, ViewMode } from "@/lib/fluid/engine";
 import { type BoundedParam, PARAM_BOUNDS } from "@/lib/fluid/params";
 import type { Scenario } from "@/lib/fluid/scenarios";
+import { Info } from "./Info";
+import { Sym } from "./Sym";
 import type { Telemetry } from "./Stage";
 
 const VIEW_MODES: { id: ViewMode; label: string }[] = [
@@ -20,17 +22,21 @@ const VIEW_MODES: { id: ViewMode; label: string }[] = [
 interface SliderSpec {
   key: BoundedParam;
   label: string;
+  /** Set in the maths faces so it matches the equation it names. */
+  sym?: string;
+  /** Plain-language definition, offered behind an (i). */
+  info: string;
   format: (v: number) => string;
 }
 
 const SLIDERS: SliderSpec[] = [
-  { key: "curl", label: "VORTICITY ε", format: (v) => v.toFixed(0) },
-  { key: "buoyancy", label: "BUOYANCY β", format: (v) => v.toFixed(0) },
-  { key: "attackAngleDeg", label: "ANGLE α", format: (v) => `${v.toFixed(0)}°` },
-  { key: "densityDissipation", label: "DYE FADE", format: (v) => v.toFixed(2) },
-  { key: "velocityDissipation", label: "DRAG", format: (v) => v.toFixed(2) },
-  { key: "pressureIterations", label: "JACOBI ITER", format: (v) => v.toFixed(0) },
-  { key: "splatRadius", label: "SPLAT RADIUS", format: (v) => v.toFixed(2) },
+  { info: 'Vorticity confinement strength. Numerical smearing quietly eats small eddies, so the solver measures the rotation that remains and pushes it back in. Not physics — a correction for a coarse grid. At 0 the flow goes lifeless; high values shatter the dye into curling filaments.', key: "curl", label: "VORTICITY", sym: "ε", format: (v) => v.toFixed(0) },
+  { info: 'How hard warm fluid rises and cold fluid sinks, per unit of temperature. This is the whole Boussinesq approximation: density is ignored everywhere except here. At 0 the plume and the falling fingers stop entirely.', key: "buoyancy", label: "BUOYANCY", sym: "β", format: (v) => v.toFixed(0) },
+  { info: 'The angle between the wing section and the oncoming flow. Positive is nose-up. Lift grows with it until roughly 15–25°, where the flow can no longer follow the upper surface and the section stalls.', key: "attackAngleDeg", label: "ANGLE", sym: "α", format: (v) => `${v.toFixed(0)}°` },
+  { info: 'How quickly the dye fades as it travels. Purely a visualisation choice — dye is a passive tracer and carries no momentum, so this changes what you can see, never how the fluid moves.', key: "densityDissipation", label: "DYE FADE", format: (v) => v.toFixed(2) },
+  { info: 'How quickly motion itself decays. Standing in for drag the solver does not otherwise model. At 0 a single stroke keeps folding the ink for minutes.', key: "velocityDissipation", label: "DRAG", format: (v) => v.toFixed(2) },
+  { info: 'How many Jacobi sweeps are spent solving for pressure each frame. It is an iterative solve, so this is really "how converged". Drop it to 4 and the fluid becomes visibly compressible — piling up and vanishing.', key: "pressureIterations", label: "JACOBI ITER", format: (v) => v.toFixed(0) },
+  { info: 'The size of the Gaussian blob your cursor stamps into the velocity and dye fields. Small values draw fine threads; large ones shove the whole tank.', key: "splatRadius", label: "SPLAT RADIUS", format: (v) => v.toFixed(2) },
 ];
 
 interface Props {
@@ -139,7 +145,16 @@ export function ControlPanel({
             key={s.key}
             className={`sliderRow${changedParams.includes(s.key) ? " sliderRowChanged" : ""}`}
           >
-            <span className="sliderLabel">{s.label}</span>
+            <span className="sliderLabel">
+              {s.label}
+              {s.sym && (
+                <>
+                  {" "}
+                  <Sym>{s.sym}</Sym>
+                </>
+              )}
+              <Info term={s.sym ? `${s.label} ${s.sym}` : s.label}>{s.info}</Info>
+            </span>
             <input
               type="range"
               min={b.min}

@@ -60,8 +60,14 @@ test.describe("solver", () => {
     await drag(page, { x: 0.62, y: 0.5 }, { x: 0.48, y: 0.52 });
     await page.waitForTimeout(20_000);
 
-    const axis = (await page.locator(".probeAxis").textContent()) ?? "";
-    const measured = Number(axis.match(/f\s+([\d.]+)/)?.[1] ?? 0);
+    // Poll: the estimator needs a developed wake and a full trace window, and
+    // how fast that arrives depends on machine load.
+    const read = async () => {
+      const foot = (await page.locator(".probeFoot").textContent()) ?? "";
+      return Number(foot.match(/([\d.]+)\s*HZ/)?.[1] ?? 0);
+    };
+    await expect.poll(read, { timeout: 25_000, intervals: [1000] }).toBeGreaterThan(0);
+    const measured = await read();
     const grid = await readout(page, "SIM GRID");
     const height = Number(grid.split("×")[1]);
 
