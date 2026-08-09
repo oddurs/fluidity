@@ -28,7 +28,10 @@ export interface Scenario {
 /** A burst of radial splats — used on load so the canvas is never empty. */
 export function burst(engine: FluidEngine, palette: (t: number) => RGB, count = 12) {
   for (let i = 0; i < count; i++) {
-    const color = scale(palette(Math.random()), 10);
+    // ×10 dates from before bloom and before these scenarios held their dye
+    // this long: it saturated the tank white for the first second after any
+    // scenario that opens with a burst.
+    const color = scale(palette(Math.random()), 3);
     const x = 0.2 + 0.6 * Math.random();
     const y = 0.2 + 0.6 * Math.random();
     const angle = Math.random() * Math.PI * 2;

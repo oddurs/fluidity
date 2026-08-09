@@ -192,9 +192,19 @@ export function Stage() {
       if (ap.active) {
         const tIn = (now - ap.stepStart) / 1000;
         if (tIn >= TOUR[ap.index].duration) {
-          ap.index = (ap.index + 1) % TOUR.length;
+          const nextIndex = (ap.index + 1) % TOUR.length;
+          const next = TOUR[nextIndex];
+          // Each step of the tour is a separate exhibit. Dye normally carries
+          // across a scenario change, which looks good when you switch by
+          // hand, but the tour walks from the open tunnel into a closed tank
+          // where that dye has nowhere to leave — it piled up and washed the
+          // step out. A view change within one scenario is left alone.
+          if (next.command.scenario && next.command.scenario !== scenarioRef.current.id) {
+            engine.clear();
+          }
+          ap.index = nextIndex;
           ap.stepStart = now;
-          applyLabRef.current?.(TOUR[ap.index].command);
+          applyLabRef.current?.(next.command);
           setTourIndex(ap.index);
         } else if (!engine.paused) {
           TOUR[ap.index].stir?.(engine, tIn);

@@ -48,14 +48,17 @@ export const TOUR: TourStep[] = [
     command: { view: "pressure", params: { attackAngleDeg: 14 } },
   },
   {
-    caption: "AN EMPTY TANK AND A GHOST HAND. SEMI-LAGRANGIAN ADVECTION CARRIES THE INK — IT CANNOT BLOW UP.",
+    caption: "A CLOSED TANK AND A GHOST HAND. SEMI-LAGRANGIAN ADVECTION CARRIES THE INK — IT CANNOT BLOW UP.",
     duration: 12,
     command: { scenario: "ink", view: "dye" },
     stir: (e, t) => {
       const a = t * 1.8;
       const x = 0.5 + 0.27 * Math.cos(a);
       const y = 0.5 + 0.24 * Math.sin(a * 1.35);
-      const c = scale(ink(t * 0.7), 0.17);
+      // Budgeted against INK.PLAY's own ambient ribbon, which runs at the
+      // same time: the two deposits add, and at the original figure the tank
+      // saturated to flat white within seconds.
+      const c = scale(ink(t * 0.7), 0.03);
       e.splat(x, y, -Math.sin(a) * 0.004, Math.cos(a * 1.35) * 0.004, c);
     },
   },
