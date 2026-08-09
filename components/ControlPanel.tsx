@@ -48,6 +48,10 @@ interface Props {
   onParam: (key: keyof SimParams, value: number) => void;
   /** Param keys just set from the document, flashed so the change is seen. */
   changedParams: string[];
+  /** This scenario's starting values, marked on each track. */
+  defaults: SimParams;
+  /** Angle only does anything to a section, never to a cylinder. */
+  obstacleShape: string;
   paused: boolean;
   onTogglePause: () => void;
   onClear: () => void;
@@ -73,6 +77,8 @@ export function ControlPanel({
   params,
   onParam,
   changedParams,
+  defaults,
+  obstacleShape,
   paused,
   onTogglePause,
   onClear,
@@ -139,15 +145,45 @@ export function ControlPanel({
         <p className="panelLabel">SOLVER PARAMETERS</p>
         {SLIDERS.map((s) => {
           const b = PARAM_BOUNDS[s.key];
+          const pct = (v: number) => ((v - b.min) / (b.max - b.min)) * 100;
+          const atDefault = Math.abs(params[s.key] - defaults[s.key]) < b.step / 2;
+          // Rotating a cylinder does nothing. Saying so is better than
+          // offering a control that silently has no effect.
+          const inert =
+            s.key === "attackAngleDeg" &&
+            obstacleShape !== "plate" &&
+            obstacleShape !== "airfoil";
           return (
           <label
             key={s.key}
-            className={`sliderRow${changedParams.includes(s.key) ? " sliderRowChanged" : ""}`}
+            className={[
+              "sliderRow",
+              changedParams.includes(s.key) ? "sliderRowChanged" : "",
+              inert ? "sliderRowInert" : "",
+              atDefault ? "" : "sliderRowMoved",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            // Double-click anywhere on the row puts it back where the
+            // scenario started, so exploring is never a one-way door.
+            onDoubleClick={() => onParam(s.key, defaults[s.key])}
+            title={atDefault ? undefined : "Double-click to reset"}
+            // Set on the row, not the input: the tick is a sibling of the
+            // input and would never inherit a variable declared on it.
+            style={{ "--home": `${pct(defaults[s.key])}%` } as React.CSSProperties}
           >
             <span className="sliderLabel">
               {s.label}
-              {s.sym && <span className="sliderSym"> {s.sym}</span>}
-              <Info term={s.sym ? `${s.label} ${s.sym}` : s.label}>{s.info}</Info>
+              {s.sym && <span className="sliderSym">{s.sym}</span>}
+              <Info term={s.sym ? `${s.label} ${s.sym}` : s.label}>
+                {s.info}
+                {inert && (
+                  <em className="infoNote">
+                    No effect here — this scenario&rsquo;s obstacle is a
+                    cylinder, and a circle has no angle to it.
+                  </em>
+                )}
+              </Info>
             </span>
             <input
               type="range"
@@ -156,19 +192,21 @@ export function ControlPanel({
               step={b.step}
               value={params[s.key]}
               onChange={(e) => onParam(s.key, Number(e.target.value))}
+              disabled={inert}
               style={
                 {
-                  "--fill": `${((params[s.key] - b.min) / (b.max - b.min)) * 100}%`,
+                  "--fill": `${pct(params[s.key])}%`,
                 } as React.CSSProperties
               }
             />
+            <span className="sliderHome" aria-hidden="true" />
             <span className="sliderValue">{s.format(params[s.key])}</span>
           </label>
           );
         })}
       </div>
 
-      <div className="panelBlock">
+      <div className="panelBlock panelActions">
         <p className="panelLabel">ACTIONS</p>
         <div className="actionRow actionRow3">
           <button className="btn" onClick={onTogglePause} aria-pressed={paused}>

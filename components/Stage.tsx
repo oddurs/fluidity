@@ -874,6 +874,8 @@ export function Stage() {
         onViewMode={selectViewMode}
         params={params}
         onParam={updateParam}
+        defaults={{ ...DEFAULT_PARAMS, ...scenario.params }}
+        obstacleShape={instr?.obstacle.shape ?? "circle"}
         changedParams={changedParams}
         paused={paused}
         onTogglePause={togglePause}

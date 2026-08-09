@@ -57,6 +57,58 @@
 }
 
 /* An (i) and the definition behind it. */
+/* A tick at the value this scenario started from, so how far you have
+   strayed is visible and double-clicking has something to return to. */
+.sliderHome {
+  position: absolute;
+  /* Aligned to the track itself: the row's own padding and grid gap sit
+     between the label column and where the input actually begins. */
+  left: calc(6px + 108px + 10px);
+  right: calc(6px + 42px + 10px);
+  top: 50%;
+  height: 9px;
+  margin-top: -4px;
+  pointer-events: none;
+}
+
+.sliderHome::before {
+  content: "";
+  position: absolute;
+  left: clamp(0px, var(--home, 0%), 100%);
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: rgba(233, 231, 223, 0.42);
+}
+
+/* Only once you have moved it — an untouched row needs no marker. */
+.sliderRow:not(.sliderRowMoved) .sliderHome {
+  display: none;
+}
+
+.sliderRowMoved .sliderValue {
+  color: var(--accent);
+}
+
+/* A control with nothing to act on. Shown rather than hidden, so it is
+   still discoverable, but plainly not in play. */
+.sliderRowInert {
+  opacity: 0.34;
+}
+
+.sliderRowInert input[type="range"] {
+  cursor: not-allowed;
+}
+
+.infoNote {
+  display: block;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--machine-hair);
+  font-style: normal;
+  color: var(--accent);
+}
+
 /* The Greek letter naming a control. It comes from a different monospace
    face than the words around it — Plex Mono has no Greek — and that face
    carries a larger x-height, so it is trimmed back to match optically. */
@@ -907,6 +959,7 @@ body {
 /* sliders */
 
 .sliderRow {
+  position: relative;
   display: grid;
   /* Wide enough for the longest label plus its (i); at 92px "SPLAT RADIUS"
      pushed the icon onto a second line. */
@@ -947,6 +1000,9 @@ body {
 .sliderLabel {
   display: flex;
   align-items: center;
+  /* Flex drops the whitespace between the word and its symbol, which ran
+     them together as "VORTICITYε". */
+  gap: 5px;
   font-size: var(--t-tiny);
   font-weight: 600;
   letter-spacing: var(--tr-ui);
@@ -1010,9 +1066,23 @@ input[type="range"]::-moz-range-thumb {
 
 /* actions */
 
+.panelActions {
+  /* Absorbs the leftover height instead of leaving a dead band above the
+     telemetry block, and the controls get more comfortable targets for it. */
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panelActions .actionRow {
+  flex: 1 1 auto;
+}
+
 .actionRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-content: stretch;
 }
 
 .actionRow .btn {
@@ -1029,7 +1099,6 @@ input[type="range"]::-moz-range-thumb {
    void ground, paper values, orange for the live channel labels. */
 
 .telemetry {
-  margin-top: auto;
   background: var(--machine-deep);
   border-top: 1px solid var(--machine-hair);
   border-bottom: none;

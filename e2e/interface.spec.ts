@@ -54,6 +54,39 @@ test.describe("interface", () => {
     await expect.poll(() => readout(page, "STATE")).toBe("RUNNING");
   });
 
+  test("a moved control shows where it started and can be put back", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForTimeout(3000);
+    const row = page.locator(".sliderRow", { hasText: "VORTICITY" });
+    const value = () => row.locator(".sliderValue").textContent();
+    const start = await value();
+
+    await row.locator("input").fill("48");
+    await expect(row).toHaveClass(/sliderRowMoved/);
+    await expect(row.locator(".sliderHome")).toBeVisible();
+
+    // Double-click anywhere on the row returns it to the scenario's value.
+    await row.dblclick();
+    await expect.poll(value).toBe(start);
+    await expect(row).not.toHaveClass(/sliderRowMoved/);
+  });
+
+  test("a control with nothing to act on is marked inert", async ({ page }) => {
+    // Angle of attack does nothing to a cylinder; offering a live control
+    // that silently has no effect is worse than saying so.
+    await page.goto("/");
+    await page.waitForTimeout(3000);
+    const angle = page.locator(".sliderRow", { hasText: "ANGLE" });
+    await expect(angle).toHaveClass(/sliderRowInert/);
+    await expect(angle.locator("input")).toBeDisabled();
+
+    // On the wing it is the whole point, so it must come alive.
+    await page.locator(".scenarioGrid .btn", { hasText: "WING" }).click();
+    await page.waitForTimeout(2500);
+    await expect(angle).not.toHaveClass(/sliderRowInert/);
+    await expect(angle.locator("input")).toBeEnabled();
+  });
+
   test("the probe readout never resizes or jumps", async ({ page }) => {
     // It reports four values that change ten times a second. Set as a
     // run-on line, every changing digit — and every field that blinked in and
