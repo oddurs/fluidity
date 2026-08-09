@@ -122,10 +122,28 @@ export function Stage() {
   /** Solver params just changed by a TRY IT action, flashed in the panel. */
   const [changedParams, setChangedParams] = useState<string[]>([]);
 
+  /**
+   * Keyboard control of the tank itself. Every button and slider was already
+   * reachable, but the one interaction the whole app is built around —
+   * stirring the fluid, moving the cylinder, placing the probe — required a
+   * pointer. Arrows drive whichever instrument is selected; the model mirrors
+   * the mouse (move, then act) rather than inventing a second one.
+   */
+  const [kbTarget, setKbTarget] = useState<"probe" | "obstacle">("probe");
+  const canvasFocusedRef = useRef(false);
+  const [canvasFocused, setCanvasFocused] = useState(false);
+  /** Last direction nudged, so a stir has something to push along. */
+  const lastDirRef = useRef({ x: 1, y: 0 });
+  /** Announcements for assistive technology. Discrete events only. */
+  const [announcement, setAnnouncement] = useState("");
+  const [narration, setNarration] = useState("");
+
   // Aeolian tone: the shedding frequency, made audible. Off until asked for.
   const toneRef = useRef<AeolianTone | null>(null);
   const [tone, setTone] = useState(false);
   const [shedHz, setShedHz] = useState(0);
+  // Mirrored so describe() can stay a stable callback over refs.
+  const shedHzRef = useRef(0);
 
   // Engine + render loop
   useEffect(() => {
@@ -576,6 +594,39 @@ export function Stage() {
     if (engine) burst(engine, (t) => scenarioRef.current.palette(t * 40).map((c) => c / 0.15) as [number, number, number], 14);
   }, [userAct]);
 
+  /** A sentence describing the tank as it stands, for a screen reader. */
+  const describe = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return "The simulation is not running.";
+    const sc = scenarioRef.current;
+    const pr = probeRef.current;
+    const r = probeReadRef.current.value;
+    const parts = [`${sc.name}, showing the ${engine.viewMode} field.`];
+    if (engine.wind.speed > 0) {
+      parts.push(`Flow enters from the left at ${Math.round(engine.wind.speed)} texels per second.`);
+    }
+    const o = engine.obstacle;
+    if (o.radius > 0) {
+      const shape = o.shape === "airfoil" ? "wing section" : o.shape === "plate" ? "plate" : "cylinder";
+      parts.push(
+        `A ${shape} sits ${Math.round(o.x * 100)} percent across and ${Math.round(o.y * 100)} percent up.`,
+      );
+      if (o.shape === "airfoil" || o.shape === "plate") {
+        parts.push(`Its angle of attack is ${Math.round(engine.params.attackAngleDeg)} degrees.`);
+      }
+    }
+    if (pr.on) {
+      parts.push(
+        `The probe, ${Math.round(pr.x * 100)} percent across and ${Math.round(pr.y * 100)} percent up, reads speed ${Math.round(Math.hypot(r.u, r.v))}, pressure ${r.p.toFixed(1)}, vorticity ${r.curl.toFixed(1)}, temperature ${r.T.toFixed(1)}.`,
+      );
+      const f = shedHzRef.current;
+      if (f > 0) parts.push(`Its pressure is oscillating at ${f.toFixed(2)} hertz.`);
+    }
+    return parts.join(" ");
+  }, []);
+
+  const announce = useCallback((msg: string) => setAnnouncement(msg), []);
+
   const showFlash = useCallback((msg: string) => {
     setFlash(msg);
     setTimeout(() => setFlash((cur) => (cur === msg ? null : cur)), 2200);
@@ -703,6 +754,7 @@ export function Stage() {
       const pitch = probeRef.current.on
         ? estimatePitch(traceRef.current, 1000 / TRACE_INTERVAL_MS)
         : { freq: 0, strength: 0 };
+      shedHzRef.current = pitch.freq;
       setShedHz(pitch.freq);
       toneRef.current?.update(pitch);
     }, 200);
@@ -710,6 +762,64 @@ export function Stage() {
   }, []);
 
   useEffect(() => () => toneRef.current?.dispose(), []);
+
+  // Keep the readable account current without announcing it. Refreshed on a
+  // slow timer rather than during render, which cannot read refs safely.
+  useEffect(() => {
+    const update = () => setNarration(describe());
+    update();
+    const id = setInterval(update, 2000);
+    return () => clearInterval(id);
+  }, [describe]);
+
+  /** Move the selected instrument, in UV where y is up. */
+  const nudge = useCallback(
+    (dx: number, dy: number, coarse: boolean) => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      const step = coarse ? 0.05 : 0.01;
+      lastDirRef.current = { x: dx, y: dy };
+      if (kbTarget === "obstacle" && engine.obstacle.radius > 0) {
+        const o = engine.obstacle;
+        o.x = Math.min(0.92, Math.max(0.08, o.x + dx * step));
+        o.y = Math.min(0.9, Math.max(0.1, o.y + dy * step));
+        announce(`Obstacle at ${Math.round(o.x * 100)}, ${Math.round(o.y * 100)}`);
+      } else {
+        const pr = probeRef.current;
+        pr.x = Math.min(0.98, Math.max(0.02, pr.x + dx * step));
+        pr.y = Math.min(0.98, Math.max(0.02, pr.y + dy * step));
+        announce(`Probe at ${Math.round(pr.x * 100)}, ${Math.round(pr.y * 100)}`);
+      }
+      refreshInstr();
+    },
+    [kbTarget, announce, refreshInstr],
+  );
+
+  /** Stamp momentum and dye, the keyboard equivalent of a drag. */
+  const stir = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const at = kbTarget === "obstacle" && engine.obstacle.radius > 0 ? engine.obstacle : probeRef.current;
+    const d = lastDirRef.current;
+    splatCounter.current += 1;
+    const color = scenarioRef.current.palette(splatCounter.current);
+    engine.splat(at.x, at.y, d.x * 0.03, d.y * 0.03, color);
+    engine.splatHeat(at.x, at.y, 0.1);
+    announce("Stirred");
+  }, [kbTarget, announce]);
+
+  const cycleTarget = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine || engine.obstacle.radius <= 0) {
+      announce("This scenario has no obstacle; the probe stays selected.");
+      return;
+    }
+    setKbTarget((t) => {
+      const next = t === "probe" ? "obstacle" : "probe";
+      announce(`${next === "probe" ? "Probe" : "Obstacle"} selected`);
+      return next;
+    });
+  }, [announce]);
 
   const toggleTone = useCallback(async () => {
     if (tone) {
@@ -791,6 +901,40 @@ export function Stage() {
         return;
       }
 
+      // Arrows belong to the page unless the tank has been focused. Claiming
+      // them globally would break scrolling through a 14,000px document.
+      if (canvasFocusedRef.current) {
+        const arrows: Record<string, [number, number]> = {
+          ArrowLeft: [-1, 0],
+          ArrowRight: [1, 0],
+          ArrowUp: [0, 1],
+          ArrowDown: [0, -1],
+        };
+        const dir = arrows[e.key];
+        if (dir) {
+          e.preventDefault();
+          nudge(dir[0], dir[1], e.shiftKey);
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          stir();
+          return;
+        }
+        if (e.key.toLowerCase() === "o") {
+          e.preventDefault();
+          cycleTarget();
+          return;
+        }
+      }
+
+      // Read the tank aloud, from anywhere.
+      if (e.key === ".") {
+        setNarration(describe());
+        announce(describe());
+        return;
+      }
+
       const digit = Number(e.key);
       if (Number.isInteger(digit) && digit >= 1 && digit <= SCENARIOS.length) {
         selectScenario(SCENARIOS[digit - 1].id);
@@ -836,6 +980,11 @@ export function Stage() {
     savePlate,
     copyLink,
     toggleTone,
+    nudge,
+    stir,
+    cycleTarget,
+    describe,
+    announce,
   ]);
 
   const scenario = SCENARIOS.find((s) => s.id === scenarioId) ?? SCENARIOS[0];
@@ -856,17 +1005,49 @@ export function Stage() {
           <canvas
             ref={canvasRef}
             className="fluidCanvas"
+            tabIndex={0}
+            // role=application so arrow keys reach the tank instead of being
+            // swallowed by a screen reader's browse mode.
+            role="application"
             data-grab={grabTarget}
             data-dragging={dragging ? "true" : undefined}
-            aria-label="Interactive fluid simulation. Drag to stir the fluid."
+            data-kb={canvasFocused ? kbTarget : undefined}
+            aria-label={
+              "Fluid tank. Drag to stir. With this focused, arrow keys move the " +
+              (kbTarget === "obstacle" ? "obstacle" : "probe") +
+              ", O switches between probe and obstacle, Enter stirs, and full stop reads the tank aloud."
+            }
+            onFocus={() => {
+              canvasFocusedRef.current = true;
+              setCanvasFocused(true);
+              announce(
+                `Tank focused. Arrow keys move the ${kbTarget}. Press O to switch, Enter to stir, full stop to hear the readings.`,
+              );
+            }}
+            onBlur={() => {
+              canvasFocusedRef.current = false;
+              setCanvasFocused(false);
+            }}
           />
         )}
         <p className="stageHint">{scenario.hint ?? "DRAG TO DISTURB THE FIELD"}</p>
+
+        {/* Readable at any time in browse mode, and deliberately NOT a live
+            region: the solver changes four times a second and announcing that
+            continuously would make the page unusable. */}
+        <section className="srOnly" aria-label="State of the simulation">
+          <p>{narration}</p>
+        </section>
+
+        {/* Discrete events only — a move, a selection, a stir. */}
+        <p className="srOnly" role="status" aria-live="polite">
+          {announcement}
+        </p>
         {!glError && instr && (
           <Annotations
             snap={instr}
             trace={trace}
-            probeHover={grabTarget === "probe"}
+            probeHover={grabTarget === "probe" || (canvasFocused && kbTarget === "probe")}
             shedHz={shedHz}
           />
         )}
@@ -885,6 +1066,12 @@ export function Stage() {
             <p className="keysTitle">KEYBOARD</p>
             <dl className="keysList">
               {[
+                ["TAB", "FOCUS THE TANK"],
+                ["↑ ↓ ← →", "MOVE SELECTION"],
+                ["SHIFT + ↑", "COARSE STEP"],
+                ["O", "PROBE / OBSTACLE"],
+                ["ENTER", "STIR"],
+                [".", "READ THE TANK"],
                 ["1–7", "SPECIMEN"],
                 ["D V P C H", "FIELD X-RAY"],
                 ["SPACE", "PAUSE"],

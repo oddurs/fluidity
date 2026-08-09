@@ -320,3 +320,19 @@ Non-negotiable, and checked every sprint: visible focus rings (3px accent,
 any width (wide content scrolls inside its own frame), all controls keyboard
 reachable and operable, `aria-pressed` on every toggle, `role="status"` on live
 regions.
+
+**The tank is a control, not a picture.** Stirring, moving the obstacle and
+placing the probe were pointer-only for a long time — the one interaction the
+whole app is built around excluded anyone without a mouse. The canvas is
+focusable and `role="application"` so arrow keys reach it; arrows move the
+selected instrument, `O` switches between probe and obstacle, `Enter` stirs.
+
+**Arrows are claimed only while the tank has focus.** The document is 14,000px
+long, and taking them globally would break scrolling it.
+
+**Two channels, deliberately separate.** A visually-hidden account of the
+solver's state is kept current on a slow timer and is readable at any time in
+browse mode — it is *not* a live region, because the solver changes four times
+a second and announcing that continuously would make the page unusable. A
+separate polite `role="status"` carries discrete events only: a move, a
+selection, a stir. Both are tested.

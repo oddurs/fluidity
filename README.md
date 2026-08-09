@@ -54,6 +54,10 @@ npm run dev
 Then open <http://localhost:3000>. You need a browser with WebGL2 and
 `EXT_color_buffer_float`, which is every current desktop and mobile browser.
 
+The tank is fully keyboard operable: `Tab` to focus it, arrows to move the
+probe, `O` to switch to the obstacle, `Enter` to stir, `.` to hear the tank
+described. Press `?` for the full map.
+
 ## Tests
 
 ```bash
