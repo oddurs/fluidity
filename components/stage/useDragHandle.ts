@@ -43,26 +43,25 @@ export function useDragHandle({ axis, perPixel, step, read, write }: DragHandleO
       // the fluid, so every resize left a splat behind it.
       e.preventDefault();
       e.stopPropagation();
-      const el = e.currentTarget;
       start.current = { pos: axis === "x" ? e.clientX : e.clientY, value: read() };
-      try {
-        el.setPointerCapture(e.pointerId);
-      } catch {
-        // Capture is an optimisation; the drag still tracks without it.
-      }
 
+      // On window, not on the element with pointer capture. Capture is meant
+      // to keep delivering moves once the cursor leaves the element, and in
+      // Firefox it did not — a drag that ran off the tag stopped updating
+      // after a few pixels, so the value never reached its bound. The window
+      // hears every move regardless of what is under the cursor.
       const move = (ev: globalThis.PointerEvent) => {
         const now = axis === "x" ? ev.clientX : ev.clientY;
         write(start.current.value + (now - start.current.pos) * perPixel);
       };
       const up = () => {
-        el.removeEventListener("pointermove", move);
-        el.removeEventListener("pointerup", up);
-        el.removeEventListener("pointercancel", up);
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
       };
-      el.addEventListener("pointermove", move);
-      el.addEventListener("pointerup", up);
-      el.addEventListener("pointercancel", up);
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
     },
     [axis, perPixel, read, write],
   );

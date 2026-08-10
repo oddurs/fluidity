@@ -31,23 +31,30 @@ test.describe("draggable callouts", () => {
     await expect.poll(() => speed(page)).toBeGreaterThan(before);
   });
 
-  test("the speed cannot be dragged outside its bounds", async ({ page }) => {
+  test("the speed cannot be driven outside its bounds", async ({ page }) => {
     // A callout is a control now, so it is subject to the same rule as every
     // other one: lib/fluid/params.ts owns the range and nothing exceeds it.
+    //
+    // The drag stops at the edge of the window rather than running far past
+    // it, because Firefox reports clientX as 0 — not as the viewport edge —
+    // for a pointer beyond the viewport, which reads as a large drag in the
+    // opposite direction. A sweep across the tank is more than enough to
+    // overshoot the top of the range anyway.
+    await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto("/");
     await page.waitForTimeout(4000);
-    const box = (await page.locator(".inletTag").boundingBox())!;
 
+    const box = (await page.locator(".inletTag").boundingBox())!;
     await page.mouse.move(box.x + 30, box.y + box.height / 2);
     await page.mouse.down();
-    await page.mouse.move(box.x + 4000, box.y + box.height / 2, { steps: 6 });
+    await page.mouse.move(1278, box.y + box.height / 2, { steps: 10 });
     await page.mouse.up();
     await expect.poll(() => speed(page)).toBe(400);
 
-    await page.mouse.move(box.x + 30, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box.x - 4000, box.y + box.height / 2, { steps: 6 });
-    await page.mouse.up();
+    // The tag sits at the left edge, so there is no room to drag back down
+    // the same way. The keyboard reaches the other bound.
+    await page.locator(".inletTag").focus();
+    for (let i = 0; i < 90; i++) await page.keyboard.press("ArrowLeft");
     await expect.poll(() => speed(page)).toBe(20);
   });
 

@@ -62,6 +62,14 @@ whatever you are measuring.
   Both stop the tag wrapping; only `pre` keeps the space. Measure the gap with
   a Range rather than judging it from a screenshot, which is how it got
   declared fixed once while still broken.
+- **Never run your own dev server while Playwright runs.** It reuses a server
+  on :3000 and then tears down the process group on exit, killing it — which
+  surfaces as `NS_ERROR_CONNECTION_REFUSED` partway through a run and looks
+  exactly like a real regression. Several hours went into chasing failures
+  that were only this. Free the port and let Playwright own the server.
+- **Firefox reports `clientX: 0` for a pointer beyond the viewport**, not the
+  viewport edge. A test that drags far past the window reads in Firefox as a
+  drag the other way. Drag to the window edge instead.
 - **Prefer targeted edits over scripted regex rewrites of `app/globals.css`.**
   A slice that matched the wrong selector once destroyed the entire head of
   that file, and git had only the scaffold commit to fall back on.
