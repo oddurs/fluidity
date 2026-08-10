@@ -7,14 +7,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LabCommand, onLabCommand } from "@/lib/fluid/bus";
 import { DEFAULT_PARAMS, FluidEngine, SimParams, ViewMode } from "@/lib/fluid/engine";
 import { burst, Scenario, SCENARIOS } from "@/lib/fluid/scenarios";
+import { clampTank } from "@/lib/fluid/params";
 import { decodeState, encodeState } from "@/lib/fluid/permalink";
-import { buildPlate, downloadPlate, type PlateInfo } from "@/lib/fluid/plate";
 import { QualityController } from "@/lib/fluid/quality";
-import { ClipRecorder, downloadClip, extensionFor, pickMimeType } from "@/lib/fluid/recorder";
 import { AeolianTone, estimatePitch } from "@/lib/fluid/tone";
 import { TOUR } from "@/lib/fluid/tour";
 import { Annotations, InstrumentSnapshot, TraceView } from "./Annotations";
 import { ControlPanel } from "./ControlPanel";
+import { useContextLoss } from "./stage/useContextLoss";
+import { useCapture } from "./stage/useCapture";
+import { usePointerInput, type GrabTarget, type PointerState } from "./stage/usePointerInput";
+import { useActiveWhileVisible, useDock } from "./stage/useTankVisibility";
 
 export interface Telemetry {
   fps: number;
@@ -34,14 +37,6 @@ const DOCK_SCALE = 0.27;
 /** Probe trace: 160 samples at 40 Hz ≈ 4 s of history. */
 const TRACE_LEN = 160;
 const TRACE_INTERVAL_MS = 25;
-
-interface PointerState {
-  x: number;
-  y: number;
-  color: [number, number, number];
-  /** What the pointer grabbed: the fluid, the obstacle, or the probe. */
-  mode: "splat" | "obstacle" | "probe";
-}
 
 export function Stage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -66,25 +61,21 @@ export function Stage() {
   });
   const [glError, setGlError] = useState<string | null>(null);
 
+  const qualityRef = useRef(new QualityController());
+  /** Stepping only runs while the canvas is visible and the tab is focused. */
+  const activeRef = useRef(true);
+
   /**
    * Once the stage scrolls away, the tank docks to a corner and keeps
    * running. The essay is 14,000px long and every TRY IT acts on the solver;
    * without this you fire an action at something you cannot see, then have to
    * scroll back and find your place again.
    */
-  const [docked, setDocked] = useState(false);
-  // State, not a ref: this is read during render, and a ref read there is
-  // unsound when a render can be discarded and replayed.
-  const [dockSize, setDockSize] = useState<{ w: number; h: number } | null>(null);
+  const { docked, dockSize } = useDock(canvasRef);
+  useActiveWhileVisible(canvasRef, activeRef);
 
-  // A lost GL context can be restored by the browser; bumping the generation
-  // rebuilds the engine from scratch on the same canvas.
-  const [glGeneration, setGlGeneration] = useState(0);
-  const [contextLost, setContextLost] = useState(false);
-
-  const qualityRef = useRef(new QualityController());
-  /** Stepping only runs while the canvas is visible and the tab is focused. */
-  const activeRef = useRef(true);
+  const resettleQuality = useCallback(() => qualityRef.current.resettle(), []);
+  const { contextLost, glGeneration } = useContextLoss(canvasRef, resettleQuality);
 
   // AUTO.PILOT: a looping scripted tour. The RAF loop reads the ref; React
   // state only mirrors the current step for the caption overlay.
@@ -101,13 +92,17 @@ export function Stage() {
 
   // Transient confirmation for capture/share actions.
   const [flash, setFlash] = useState<string | null>(null);
+  const showFlash = useCallback((msg: string) => {
+    setFlash(msg);
+    setTimeout(() => setFlash((cur) => (cur === msg ? null : cur)), 2200);
+  }, []);
   const [showKeys, setShowKeys] = useState(false);
 
   // What the cursor is currently over, so the canvas can advertise that the
   // cylinder and the probe are things you can pick up.
-  const [grabTarget, setGrabTarget] = useState<"none" | "obstacle" | "probe">("none");
+  const [grabTarget, setGrabTarget] = useState<GrabTarget>("none");
   const [dragging, setDragging] = useState(false);
-  const grabRef = useRef<"none" | "obstacle" | "probe">("none");
+  const grabRef = useRef<GrabTarget>("none");
 
   /** Rolling pressure history behind the probe, for the sparkline. */
   const traceRef = useRef<number[]>([]);
@@ -139,12 +134,10 @@ export function Stage() {
   const [announcement, setAnnouncement] = useState("");
   const [narration, setNarration] = useState("");
 
-  /** Clip capture. The app is about motion; a still could never show it. */
-  const recorderRef = useRef<ClipRecorder | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [recordProgress, setRecordProgress] = useState(0);
-  /** Built fresh each frame so the data block tracks the running solver. */
-  const plateInfoRef = useRef<(() => PlateInfo) | null>(null);
+  /** Clip capture and plate export. The app is about motion; a still alone
+      could never show it. */
+  const { recording, recordProgress, savePlate, recordClip, captureFrame, isRecording } =
+    useCapture(engineRef, canvasRef, scenarioRef, showFlash);
 
   // Aeolian tone: the shedding frequency, made audible. Off until asked for.
   const toneRef = useRef<AeolianTone | null>(null);
@@ -185,7 +178,7 @@ export function Stage() {
     let frameEma = 16;
     let lastFlush = 0;
     let traceTick = -Infinity;
-    let recordStep = -1;
+    const lastObs = { x: NaN, y: NaN };
 
     const loop = (now: number) => {
       const rawDt = (now - last) / 1000;
@@ -212,9 +205,7 @@ export function Stage() {
       // Adaptive quality: drop resolution when the frame budget is missed.
       // Suspended while recording — the compositor makes frames slower, and
       // degrading the tank halfway through a clip is exactly wrong.
-      const drop = recorderRef.current?.running
-        ? null
-        : qualityRef.current.sample(rawDt * 1000);
+      const drop = isRecording() ? null : qualityRef.current.sample(rawDt * 1000);
       if (drop) {
         engine.setResolution(drop.simResolution, drop.dyeResolution);
       }
@@ -254,34 +245,22 @@ export function Stage() {
       }
       engine.render();
 
+      // The cylinder is drawn by the shader every frame; its dimension
+      // callout is a DOM element on a 10 Hz tick. Whenever something moves
+      // the obstacle without going through the pointer handler — the tour
+      // script, a keyboard nudge — the label was left stepping along ten
+      // times a second behind a circle moving at the frame rate. Refresh on
+      // actual movement, so the cost is paid only while it is moving.
+      const obs = engine.obstacle;
+      if (obs.x !== lastObs.x || obs.y !== lastObs.y) {
+        lastObs.x = obs.x;
+        lastObs.y = obs.y;
+        refreshInstrRef.current();
+      }
+
       // Clip capture paints here, in the same task as the render, for the
       // same reason the still export does.
-      const rec = recorderRef.current;
-      if (rec?.running && plateInfoRef.current) {
-        const finished = rec.frame(now, canvas, plateInfoRef.current());
-        // Coarsely: the progress fill has about twenty legible steps, and a
-        // re-render per frame is precisely the disturbance a capture must not
-        // introduce.
-        const step = Math.floor(rec.progress * 20);
-        if (step !== recordStep) {
-          recordStep = step;
-          setRecordProgress(rec.progress);
-        }
-        if (finished) {
-          const scenarioId = scenarioRef.current.id;
-          void rec.finish().then(({ blob, mime }) => {
-            setRecording(false);
-            setRecordProgress(0);
-            if (!blob.size) {
-              setFlash("CLIP CAPTURE FAILED");
-              return;
-            }
-            downloadClip(blob, `fluidity-${scenarioId}-${Date.now()}.${extensionFor(mime)}`);
-            setFlash("CLIP SAVED");
-            setTimeout(() => setFlash((c) => (c === "CLIP SAVED" ? null : c)), 2200);
-          });
-        }
-      }
+      captureFrame(now, canvas);
 
       // Sample the probe faster than the readout refreshes: the sparkline
       // needs the resolution, but React does not need the updates. Gate on
@@ -326,256 +305,22 @@ export function Stage() {
       engineRef.current = null;
     };
     // Re-runs when the GL context is restored, rebuilding the whole engine.
-  }, [glGeneration]);
+  }, [glGeneration, captureFrame, isRecording]);
 
-  // WebGL context loss — a GPU reset, a driver update, or simply waking a
-  // laptop. Without this the canvas stays black forever while the loop keeps
-  // spinning and telemetry keeps reporting a healthy frame rate.
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const onLost = (e: Event) => {
-      // Preventing the default is what makes the context restorable at all.
-      e.preventDefault();
-      setContextLost(true);
-    };
-    const onRestored = () => {
-      setContextLost(false);
-      qualityRef.current.resettle();
-      setGlGeneration((g) => g + 1);
-    };
-    canvas.addEventListener("webglcontextlost", onLost);
-    canvas.addEventListener("webglcontextrestored", onRestored);
-    return () => {
-      canvas.removeEventListener("webglcontextlost", onLost);
-      canvas.removeEventListener("webglcontextrestored", onRestored);
-    };
-  }, []);
-
-  // Dock the tank when the stage leaves the viewport. The element keeps its
-  // measured size and is scaled down, so the drawing buffer never changes and
-  // the simulation is not disturbed by docking.
-  useEffect(() => {
-    const wrap = canvasRef.current?.parentElement;
-    const stage = wrap?.parentElement;
-    if (!wrap || !stage) return;
-    // Below this the thumbnail would cover the text it is meant to accompany.
-    const roomy = () => window.innerWidth >= 900 && window.innerHeight >= 560;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        const shouldDock = !entry.isIntersecting && roomy();
-        if (shouldDock) {
-          const r = wrap.getBoundingClientRect();
-          // Exact, not rounded: half a pixel of difference changes the
-          // canvas client size and rebuilds every framebuffer on dock.
-          setDockSize({ w: r.width, h: r.height });
-        }
-        setDocked(shouldDock);
-      },
-      { threshold: 0 },
-    );
-    observer.observe(stage);
-    return () => observer.disconnect();
-  }, []);
-
-  // Idle when the tab is hidden or the stage is scrolled out of view.
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    let onScreen = true;
-    const update = () => {
-      activeRef.current = onScreen && !document.hidden;
-    };
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        onScreen = entry.isIntersecting;
-        update();
-      },
-      { threshold: 0 },
-    );
-    observer.observe(canvas);
-    document.addEventListener("visibilitychange", update);
-    return () => {
-      observer.disconnect();
-      document.removeEventListener("visibilitychange", update);
-    };
-  }, []);
-
-  // Pointer input → splats
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const toUV = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      return {
-        x: (e.clientX - rect.left) / rect.width,
-        y: 1 - (e.clientY - rect.top) / rect.height,
-      };
-    };
-
-    // A fingertip is far less precise than a cursor, so grab targets grow on
-    // touch devices rather than demanding pixel accuracy.
-    const coarse =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(pointer: coarse)").matches;
-    const PROBE_GRAB_PX = coarse ? 30 : 18;
-    const OBSTACLE_GRAB = coarse ? 2.1 : 1.6;
-
-    /** Which grabbable thing, if any, sits under this point. */
-    const hitTest = (x: number, y: number): "none" | "obstacle" | "probe" => {
-      const engine = engineRef.current;
-      if (!engine) return "none";
-      const rect = canvas.getBoundingClientRect();
-      const pr = probeRef.current;
-      if (pr.on && Math.hypot((x - pr.x) * rect.width, (y - pr.y) * rect.height) < PROBE_GRAB_PX) {
-        return "probe";
-      }
-      const obs = engine.obstacle;
-      if (obs.radius > 0) {
-        const ddx = (x - obs.x) * (rect.width / rect.height);
-        const ddy = y - obs.y;
-        if (Math.hypot(ddx, ddy) < obs.radius * OBSTACLE_GRAB) return "obstacle";
-      }
-      return "none";
-    };
-
-    const hoverPrev = { current: null as { x: number; y: number } | null };
-
-    const down = (e: PointerEvent) => {
-      // Capture is an optimisation, not a requirement — and it throws on
-      // some engines for pointer ids they consider inactive. Letting that
-      // escape would abort the handler and the drag would never begin.
-      try {
-        canvas.setPointerCapture(e.pointerId);
-      } catch {
-        // Without capture the drag still tracks while the pointer stays
-        // over the canvas, which is the common case.
-      }
-      const engine = engineRef.current;
-      const { x, y } = toUV(e);
-
-      const hit = hitTest(x, y);
-      setDragging(true);
-
-      // Grabbing the probe is passive measurement, so it does not interrupt
-      // the autopilot the way disturbing the fluid does.
-      if (hit === "probe") {
-        pointersRef.current.set(e.pointerId, { x, y, color: [0, 0, 0], mode: "probe" });
-        return;
-      }
-
-      // Touching the fluid takes over from the autopilot.
-      if (autopilotRef.current.active) {
-        autopilotRef.current.active = false;
-        setTourIndex(null);
-      }
-
-      if (hit === "obstacle") {
-        pointersRef.current.set(e.pointerId, { x, y, color: [0, 0, 0], mode: "obstacle" });
-        return;
-      }
-
-      const color = scenarioRef.current.palette(splatCounter.current++);
-      pointersRef.current.set(e.pointerId, { x, y, color, mode: "splat" });
-      engine?.splat(x, y, 0, 0, [color[0] * 10, color[1] * 10, color[2] * 10]);
-    };
-
-    const move = (e: PointerEvent) => {
-      const engine = engineRef.current;
-      if (!engine) return;
-      const { x, y } = toUV(e);
-      const p = pointersRef.current.get(e.pointerId);
-      if (!p) {
-        // Hover: no button held. Advertise anything grabbable under the
-        // cursor, then stir gently so the canvas responds the instant a
-        // cursor crosses it.
-        if (e.pointerType === "mouse") {
-          const hit = hitTest(x, y);
-          if (hit !== grabRef.current) {
-            grabRef.current = hit;
-            setGrabTarget(hit);
-          }
-          if (hit !== "none") {
-            hoverPrev.current = { x, y };
-            return;
-          }
-          const color = scenarioRef.current.palette(splatCounter.current);
-          const prev = hoverPrev.current;
-          if (prev) {
-            const dx = x - prev.x;
-            const dy = y - prev.y;
-            if (Math.abs(dx) + Math.abs(dy) > 0.0005) {
-              splatCounter.current += 0.02;
-              engine.splat(x, y, dx * 0.6, dy * 0.6, [color[0] * 0.25, color[1] * 0.25, color[2] * 0.25]);
-            }
-          }
-          hoverPrev.current = { x, y };
-        }
-        return;
-      }
-      const dx = x - p.x;
-      const dy = y - p.y;
-      p.x = x;
-      p.y = y;
-      if (p.mode === "probe") {
-        const pr = probeRef.current;
-        pr.x = Math.min(0.98, Math.max(0.02, x));
-        pr.y = Math.min(0.98, Math.max(0.02, y));
-        refreshInstrRef.current();
-        return;
-      }
-      if (p.mode === "obstacle") {
-        // Carry the cylinder with the pointer and stir the fluid it sweeps
-        // through, so moving it sheds a wake.
-        const obs = engine.obstacle;
-        obs.x = Math.min(0.92, Math.max(0.08, x));
-        obs.y = Math.min(0.9, Math.max(0.1, y));
-        if (Math.abs(dx) + Math.abs(dy) > 0.0002) {
-          engine.splat(obs.x, obs.y, dx * 0.8, dy * 0.8, [0, 0, 0]);
-        }
-        // The cylinder is drawn by the shader every frame, so its dimension
-        // annotation has to keep up with the pointer too — left to the 10 Hz
-        // instrument tick it visibly lagged and stuttered behind the drag.
-        refreshInstrRef.current();
-        return;
-      }
-      if (Math.abs(dx) + Math.abs(dy) > 0.0002) {
-        // Drift the hue as the stroke travels, so long drags leave a
-        // rainbow wake instead of a single-color smear.
-        splatCounter.current += 0.03;
-        p.color = scenarioRef.current.palette(splatCounter.current);
-        engine.splat(x, y, dx, dy, p.color);
-        // Strokes always deposit heat. With buoyancy on it lifts; with it
-        // off the heat is a passive tracer you can still watch advect.
-        engine.splatHeat(x, y, 0.1);
-      }
-    };
-
-    const up = (e: PointerEvent) => {
-      pointersRef.current.delete(e.pointerId);
-      if (pointersRef.current.size === 0) setDragging(false);
-    };
-
-    const leave = () => {
-      hoverPrev.current = null;
-      grabRef.current = "none";
-      setGrabTarget("none");
-    };
-
-    canvas.addEventListener("pointerdown", down);
-    canvas.addEventListener("pointermove", move);
-    canvas.addEventListener("pointerup", up);
-    canvas.addEventListener("pointercancel", up);
-    canvas.addEventListener("pointerleave", leave);
-    return () => {
-      canvas.removeEventListener("pointerdown", down);
-      canvas.removeEventListener("pointermove", move);
-      canvas.removeEventListener("pointerup", up);
-      canvas.removeEventListener("pointercancel", up);
-      canvas.removeEventListener("pointerleave", leave);
-    };
-  }, []);
+  usePointerInput({
+    canvasRef,
+    engineRef,
+    scenarioRef,
+    pointersRef,
+    probeRef,
+    grabRef,
+    splatCounter,
+    autopilotRef,
+    refreshInstrRef,
+    setDragging,
+    setGrabTarget,
+    setTourIndex,
+  });
 
   const stopAutopilot = useCallback(() => {
     autopilotRef.current.active = false;
@@ -668,64 +413,6 @@ export function Stage() {
   }, []);
 
   const announce = useCallback((msg: string) => setAnnouncement(msg), []);
-
-  const showFlash = useCallback((msg: string) => {
-    setFlash(msg);
-    setTimeout(() => setFlash((cur) => (cur === msg ? null : cur)), 2200);
-  }, []);
-
-  const plateInfo = useCallback((): PlateInfo => {
-    const engine = engineRef.current!;
-    const scenario = scenarioRef.current;
-    const [simW, simH] = engine.simSize;
-    const [dyeW, dyeH] = engine.dyeSize;
-    return {
-      fig: scenario.fig ?? "FIG. — SPECIMEN",
-      scenarioName: scenario.name,
-      view: engine.viewMode,
-      params: engine.params,
-      simGrid: `${simW}×${simH}`,
-      dyeGrid: `${dyeW}×${dyeH}`,
-      stamp: new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC",
-    };
-  }, []);
-
-  useEffect(() => {
-    plateInfoRef.current = plateInfo;
-  }, [plateInfo]);
-
-  const savePlate = useCallback(() => {
-    const engine = engineRef.current;
-    const canvas = canvasRef.current;
-    if (!engine || !canvas) return;
-    const scenario = scenarioRef.current;
-    const now = new Date();
-    try {
-      const url = buildPlate(engine, canvas, plateInfo());
-      downloadPlate(url, `fluidity-${scenario.id}-${now.getTime()}.png`);
-      showFlash("PLATE SAVED");
-    } catch {
-      showFlash("PLATE EXPORT FAILED");
-    }
-  }, [showFlash, plateInfo]);
-
-  const CLIP_MS = 6000;
-
-  const recordClip = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || recorderRef.current?.running) return;
-    if (!pickMimeType()) {
-      showFlash("CLIP CAPTURE UNAVAILABLE");
-      return;
-    }
-    const rec = recorderRef.current ?? (recorderRef.current = new ClipRecorder());
-    if (!rec.start(canvas, CLIP_MS)) {
-      showFlash("CLIP CAPTURE UNAVAILABLE");
-      return;
-    }
-    setRecording(true);
-    setRecordProgress(0);
-  }, [showFlash]);
 
   const copyLink = useCallback(() => {
     const engine = engineRef.current;
@@ -912,6 +599,34 @@ export function Stage() {
     const id = setInterval(refreshInstr, 100);
     return () => clearInterval(id);
   }, [refreshInstr]);
+
+  /**
+   * The two quantities the canvas callouts adjust directly. Neither lives in
+   * SimParams — each scenario sets them on the engine — so they are written
+   * through here, clamped, and the annotation redrawn at once rather than at
+   * the next 10 Hz tick.
+   */
+  const setWindSpeed = useCallback(
+    (v: number) => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      userAct();
+      engine.wind.speed = clampTank("windSpeed", v);
+      refreshInstr();
+    },
+    [userAct, refreshInstr],
+  );
+
+  const setObstacleRadius = useCallback(
+    (v: number) => {
+      const engine = engineRef.current;
+      if (!engine) return;
+      userAct();
+      engine.obstacle.radius = clampTank("obstacleRadius", v);
+      refreshInstr();
+    },
+    [userAct, refreshInstr],
+  );
 
   const toggleProbe = useCallback(() => {
     probeRef.current.on = !probeRef.current.on;
@@ -1120,6 +835,8 @@ export function Stage() {
             trace={trace}
             probeHover={grabTarget === "probe" || (canvasFocused && kbTarget === "probe")}
             shedHz={shedHz}
+            onWindSpeed={setWindSpeed}
+            onObstacleRadius={setObstacleRadius}
           />
         )}
         {contextLost && (

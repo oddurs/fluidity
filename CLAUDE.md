@@ -56,6 +56,12 @@ whatever you are measuring.
 - **The control column fits exactly** at a 1000px viewport, verified in
   Chromium, WebKit and Firefox — engines size form controls differently.
   Adding a row means reclaiming its height elsewhere. Measure in all three.
+- **`.annoTag` sets `white-space: pre`, not `nowrap`.** The tags are flex
+  containers so their `(i)` aligns without a magic offset, and flex strips the
+  space at the start of a text run — which closed the gap in `U∞ ⟶ 170`.
+  Both stop the tag wrapping; only `pre` keeps the space. Measure the gap with
+  a Range rather than judging it from a screenshot, which is how it got
+  declared fixed once while still broken.
 - **Prefer targeted edits over scripted regex rewrites of `app/globals.css`.**
   A slice that matched the wrong selector once destroyed the entire head of
   that file, and git had only the scaffold commit to fall back on.

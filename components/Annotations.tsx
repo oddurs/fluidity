@@ -1,6 +1,8 @@
 "use client";
 
+import { TANK_BOUNDS } from "@/lib/fluid/params";
 import { Info } from "./Info";
+import { useDragHandle } from "./stage/useDragHandle";
 import { Sym } from "./Sym";
 
 
@@ -105,14 +107,43 @@ export function Annotations({
   trace,
   probeHover = false,
   shedHz = 0,
+  onWindSpeed,
+  onObstacleRadius,
 }: {
   snap: InstrumentSnapshot;
   trace: TraceView;
   probeHover?: boolean;
   /** Measured oscillation frequency of the trace, in tank Hz. */
   shedHz?: number;
+  /** Set the freestream speed. Clamped by the caller. */
+  onWindSpeed?: (v: number) => void;
+  /** Set the cylinder radius. Clamped by the caller. */
+  onObstacleRadius?: (v: number) => void;
 }) {
   const { w, h, obstacle, windSpeed, attackAngleDeg, probe, reading, fig } = snap;
+
+  // Declared before the early return below: hooks cannot be conditional, and
+  // this component bails out while the canvas has no size yet.
+  const windHandle = useDragHandle({
+    axis: "x",
+    // A full tank width sweeps the whole speed range, which makes small
+    // corrections possible without the drag ever feeling stuck.
+    perPixel: (TANK_BOUNDS.windSpeed.max - TANK_BOUNDS.windSpeed.min) / Math.max(w, 1),
+    step: TANK_BOUNDS.windSpeed.step,
+    read: () => snap.windSpeed,
+    write: (v) => onWindSpeed?.(v),
+  });
+  const radiusHandle = useDragHandle({
+    axis: "y",
+    // Dragging up grows the cylinder, and screen y grows downward — hence the
+    // sign. Halved because the dimension line shows the diameter, so the
+    // handle should track the edge it is on rather than move twice as fast.
+    perPixel: -0.5 / Math.max(h, 1),
+    step: TANK_BOUNDS.obstacleRadius.step,
+    read: () => snap.obstacle.radius,
+    write: (v) => onObstacleRadius?.(v),
+  });
+
   if (w === 0 || h === 0) return null;
 
   // Obstacle geometry in pixels: radius is a fraction of tank height.
@@ -141,8 +172,18 @@ export function Annotations({
       {fig && <span className="figLabel">{fig}</span>}
 
       {windSpeed > 0 && (
-        <span className="annoTag inletTag">
-          U<Sym>∞</Sym> ⟶ {Math.round(windSpeed)} TX/S
+        <span
+          className={`annoTag inletTag${onWindSpeed ? " annoGrab annoGrabX" : ""}`}
+          role={onWindSpeed ? "slider" : undefined}
+          tabIndex={onWindSpeed ? 0 : undefined}
+          aria-label={onWindSpeed ? "Freestream speed, in grid cells per second" : undefined}
+          aria-valuenow={onWindSpeed ? Math.round(windSpeed) : undefined}
+          aria-valuemin={onWindSpeed ? TANK_BOUNDS.windSpeed.min : undefined}
+          aria-valuemax={onWindSpeed ? TANK_BOUNDS.windSpeed.max : undefined}
+          onPointerDown={onWindSpeed ? windHandle.onPointerDown : undefined}
+          onKeyDown={onWindSpeed ? windHandle.onKeyDown : undefined}
+        >
+          U<Sym>∞</Sym> ⟶ {Math.round(windSpeed)} CELLS/S
           <Info term="U∞ — freestream velocity">
             The speed of the undisturbed flow entering the tunnel, before it
             meets anything. The ∞ means &ldquo;far away&rdquo;. It is a fixed
@@ -159,13 +200,24 @@ export function Annotations({
           className="dimLine"
           style={{ left: ox - rPx - 18, top: oy - rPx, height: 2 * rPx }}
         >
-          <span className="annoTag dimTag">
+          <span
+            className={`annoTag dimTag${onObstacleRadius ? " annoGrab annoGrabY" : ""}`}
+            role={onObstacleRadius ? "slider" : undefined}
+            tabIndex={onObstacleRadius ? 0 : undefined}
+            aria-label={onObstacleRadius ? "Cylinder diameter, as a fraction of tank height" : undefined}
+            aria-valuenow={onObstacleRadius ? Number((obstacle.radius * 2).toFixed(3)) : undefined}
+            aria-valuemin={onObstacleRadius ? TANK_BOUNDS.obstacleRadius.min * 2 : undefined}
+            aria-valuemax={onObstacleRadius ? TANK_BOUNDS.obstacleRadius.max * 2 : undefined}
+            onPointerDown={onObstacleRadius ? radiusHandle.onPointerDown : undefined}
+            onKeyDown={onObstacleRadius ? radiusHandle.onKeyDown : undefined}
+          >
             D
             <Info term="D — cylinder diameter">
               The width of the obstacle across the flow. It sets the length
               scale for both dimensionless numbers on this page: the Reynolds
               number Re = U·D/ν, and the shedding rate f ≈ 0.2·U/D — which is
-              why a thin wire whistles high and a thick cable moans low.
+              why a thin wire whistles high and a thick cable moans low. Drag
+              it up or down to resize the cylinder and hear the pitch follow.
             </Info>
           </span>
         </div>

@@ -307,6 +307,13 @@ scroll-triggered reveals, no staggered entrances beyond the boot.**
 - **Tag** — void ground, paper text, orange left rule. Any data-on-dark
   annotation: probe readout, `U∞`, `α`, tour caption, keyboard legend.
 - **Gauge** — a slider whose set portion is orange. Reads at a glance.
+- **Callout** — a labelled quantity drawn on the canvas, on its own dimension
+  line where it has one. Callouts wore chip styling — dark fill, hard edge,
+  orange bar — which in this system means "you can act on this", and people
+  reached for them expecting to drag. Two of them, `U∞` and `D`, now can be:
+  the affordance was right and the behaviour was missing, rather than the
+  other way round. Their cursor names the axis, and both take arrow keys.
+  A callout that is *not* draggable must not wear the chip.
 - **Toggle** — a button with `aria-pressed`; pressed is solid orange.
 - **Rule** — 2px solid ink. The only divider that exists.
 - **Ghost numeral** — display face, `opacity: 0.055`, bled to the page edge.
