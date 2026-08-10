@@ -42,9 +42,19 @@ export interface TraceView {
 const TRACE_W = 176;
 const TRACE_H = 28;
 
-/** The tag never resizes, so its footprint is known up front. */
+/**
+ * The tag never resizes *while you watch it* — that was the whole point of
+ * fixing its width — but it does have to suit the tank it sits in. At 206px
+ * on a 390px phone canvas it covered half the width and a seventh of the
+ * picture, parked over the wake. Two sizes, chosen by canvas width and then
+ * held constant.
+ */
 const PROBE_TAG_W = 206;
 const PROBE_TAG_H = 130;
+const PROBE_TAG_W_SM = 132;
+const PROBE_TAG_H_SM = 92;
+/** Below this the tank is small enough that desktop instrumentation occludes. */
+const COMPACT_CANVAS_W = 560;
 
 /**
  * The probe's pressure history as a trace. A single number cannot show that
@@ -72,10 +82,12 @@ function smoothPath(pts: { x: number; y: number }[]): string {
   return d;
 }
 
-function Sparkline({ trace }: { trace: TraceView }) {
+function Sparkline({ trace, w = TRACE_W, h = TRACE_H }: { trace: TraceView; w?: number; h?: number }) {
   const { points: values, mid, half } = trace;
   if (values.length < 4) return null;
 
+  const TRACE_W = w;
+  const TRACE_H = h;
   const step = TRACE_W / (values.length - 1);
   const pts = values.map((v, i) => ({
     x: i * step,
@@ -157,6 +169,12 @@ export function Annotations({
   const isCircle = present && (obstacle.shape ?? "circle") === "circle";
   const hasAngle = present && (obstacle.shape === "plate" || obstacle.shape === "airfoil");
 
+  // One decision, taken from the tank's width, then applied consistently —
+  // the tag must not change size while you are reading it.
+  const compact = w < COMPACT_CANVAS_W;
+  const tagW = compact ? PROBE_TAG_W_SM : PROBE_TAG_W;
+  const tagH = compact ? PROBE_TAG_H_SM : PROBE_TAG_H;
+
   const px = probe ? probe.x * w : 0;
   const py = probe ? (1 - probe.y) * h : 0;
   const speed = Math.hypot(reading.u, reading.v);
@@ -173,7 +191,7 @@ export function Annotations({
 
       {windSpeed > 0 && (
         <span
-          className={`annoTag inletTag${onWindSpeed ? " annoGrab annoGrabX" : ""}`}
+          className={`annoTag inletTag${compact ? " annoTagSm" : ""}${onWindSpeed ? " annoGrab annoGrabX" : ""}`}
           role={onWindSpeed ? "slider" : undefined}
           tabIndex={onWindSpeed ? 0 : undefined}
           aria-label={onWindSpeed ? "Freestream speed, in grid cells per second" : undefined}
@@ -201,7 +219,7 @@ export function Annotations({
           style={{ left: ox - rPx - 18, top: oy - rPx, height: 2 * rPx }}
         >
           <span
-            className={`annoTag dimTag${onObstacleRadius ? " annoGrab annoGrabY" : ""}`}
+            className={`annoTag dimTag${compact ? " annoTagSm" : ""}${onObstacleRadius ? " annoGrab annoGrabY" : ""}`}
             role={onObstacleRadius ? "slider" : undefined}
             tabIndex={onObstacleRadius ? 0 : undefined}
             aria-label={onObstacleRadius ? "Cylinder diameter, as a fraction of tank height" : undefined}
@@ -246,10 +264,11 @@ export function Annotations({
               run-on line, every changing digit and every field that blinked in
               and out resized the whole tag. It reports; it should not move. */}
           <div
-            className="probeTag"
+            className={`probeTag${compact ? " probeTagSm" : ""}`}
             style={{
-              left: px + 14 + PROBE_TAG_W > w ? px - PROBE_TAG_W - 14 : px + 14,
-              top: py + 14 + PROBE_TAG_H > h ? py - PROBE_TAG_H - 14 : py + 14,
+              left: px + 14 + tagW > w ? px - tagW - 14 : px + 14,
+              top: py + 14 + tagH > h ? py - tagH - 14 : py + 14,
+              width: tagW,
             }}
           >
             <div className="probeHead">
@@ -285,10 +304,14 @@ export function Annotations({
                 <dd>{fmt(reading.T, 1)}</dd>
               </div>
             </dl>
-            <Sparkline trace={trace} />
+            <Sparkline trace={trace} w={compact ? 112 : TRACE_W} h={compact ? 20 : TRACE_H} />
             <div className="probeFoot">
               <span>PRESSURE · 4S</span>
-              <span>{shedHz > 0 ? `${shedHz.toFixed(2)} HZ` : "—— HZ"}</span>
+              {/* One decimal and a ≈. The estimator counts mean crossings
+                  over a finite window and reads about a fifth low when the
+                  wake breathes, so two decimals asserted a precision it does
+                  not have — and "telemetry never lies" is a rule here. */}
+              <span>{shedHz > 0 ? `≈ ${shedHz.toFixed(1)} HZ` : "—— HZ"}</span>
             </div>
           </div>
         </>

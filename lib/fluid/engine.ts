@@ -422,10 +422,18 @@ export class FluidEngine {
    * Inject momentum and dye at a point.
    * x, y in [0,1] (y up), dx/dy in UV-delta units, color as linear RGB.
    */
-  splat(x: number, y: number, dx: number, dy: number, color: [number, number, number]) {
+  /** radiusScale mirrors splatHeat's, for laying down a body of fluid. */
+  splat(
+    x: number,
+    y: number,
+    dx: number,
+    dy: number,
+    color: [number, number, number],
+    radiusScale = 1,
+  ) {
     const gl = this.gl;
     const aspect = this.canvas.width / this.canvas.height;
-    let radius = this.params.splatRadius / 100;
+    let radius = (this.params.splatRadius / 100) * radiusScale;
     if (aspect > 1) radius *= aspect;
 
     gl.useProgram(this.splatProgram.program);

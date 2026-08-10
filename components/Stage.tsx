@@ -31,9 +31,6 @@ export interface Telemetry {
   active: boolean;
 }
 
-/** Must match .canvasWrapDocked's transform in the stylesheet. */
-const DOCK_SCALE = 0.27;
-
 /** Probe trace: 160 samples at 40 Hz ≈ 4 s of history. */
 const TRACE_LEN = 160;
 const TRACE_INTERVAL_MS = 25;
@@ -417,7 +414,10 @@ export function Stage() {
   const copyLink = useCallback(() => {
     const engine = engineRef.current;
     if (!engine) return;
-    const hash = encodeState(scenarioRef.current.id, engine.viewMode, engine.params);
+    const hash = encodeState(scenarioRef.current.id, engine.viewMode, engine.params, {
+      windSpeed: engine.wind.speed,
+      obstacleRadius: engine.obstacle.radius,
+    });
     const url = `${window.location.origin}${window.location.pathname}#${hash}`;
     window.history.replaceState(null, "", `#${hash}`);
     navigator.clipboard?.writeText(url).then(
@@ -653,9 +653,23 @@ export function Stage() {
           1400,
         );
       }
+      if (cmd.tank) {
+        // After selectScenario, which sets these on the engine — otherwise
+        // the scenario's own values would land on top of the link's.
+        const engine = engineRef.current;
+        if (engine) {
+          if (cmd.tank.windSpeed != null) {
+            engine.wind.speed = clampTank("windSpeed", cmd.tank.windSpeed);
+          }
+          if (cmd.tank.obstacleRadius != null && engine.obstacle.radius > 0) {
+            engine.obstacle.radius = clampTank("obstacleRadius", cmd.tank.obstacleRadius);
+          }
+          refreshInstr();
+        }
+      }
       ap.applying = false;
     };
-  }, [selectScenario, selectViewMode]);
+  }, [selectScenario, selectViewMode, refreshInstr]);
 
   // Commands arriving from TRY IT buttons take over from the autopilot.
   useEffect(() => {
@@ -902,12 +916,18 @@ export function Stage() {
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           style={
             {
-              "--dock-w": `${(dockSize?.w ?? 0) * DOCK_SCALE}px`,
+              // Unscaled: the stylesheet multiplies by --dock-scale, which
+              // it also uses for the transform. Two copies of that number
+              // disagreed the moment the phone dock needed a different one.
+              "--dock-w-raw": `${dockSize?.w ?? 0}px`,
             } as React.CSSProperties
           }
         >
           <span className="dockFig">{scenario.name}</span>
-          <span className="dockBack">RETURN TO THE TANK ↑</span>
+          {/* Three words wrap to three lines in a 133px strip on a phone. */}
+          <span className="dockBack">
+            <span className="dockBackLong">RETURN TO THE TANK </span>↑
+          </span>
         </button>
       )}
 

@@ -44,19 +44,51 @@ test.describe("interface", () => {
     expect(Number(await readout(page, "FPS"))).toBeGreaterThan(5);
   });
 
-  test("the simulation idles when there is no room to dock it", async ({ page }) => {
-    // On a wide screen the tank docks and keeps running; where it cannot,
-    // scrolling away must still stop the solver rather than burn a GPU on
-    // something nobody is looking at.
-    await page.setViewportSize({ width: 820, height: 1180 });
+  test("the tank docks on a phone rather than dying when you scroll", async ({ page }) => {
+    // It used to need 900x560 to dock, which excluded every phone — so on a
+    // phone, reading the essay killed the simulation and left a screen of
+    // dead controls above a telemetry block honestly reporting IDLE. A phone
+    // is where a reader is most likely to scroll away and want it still there.
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
     await page.waitForTimeout(4000);
     expect(await readout(page, "STATE")).toBe("RUNNING");
+
+    await page.locator("#sec-03").scrollIntoViewIfNeeded();
+    await expect(page.locator(".canvasWrapDocked")).toHaveCount(1);
+    // Polled: scrolling takes the canvas out of the viewport and docking puts
+    // it back as a fixed thumbnail, so the observer reports twice and the
+    // telemetry flush is on its own 250ms tick.
+    await expect.poll(() => readout(page, "STATE")).toBe("RUNNING");
+
+    // The thumbnail has to stay out of the reading column, and its caption
+    // strip has to match its width — they are scaled from one variable.
+    const fits = await page.evaluate(() => {
+      const d = document.querySelector(".canvasWrapDocked")!.getBoundingClientRect();
+      const bar = document.querySelector(".dockBar")!.getBoundingClientRect();
+      return {
+        widthPct: (100 * d.width) / window.innerWidth,
+        barMatches: Math.abs(bar.width - d.width) < 2,
+        onScreen: d.right <= window.innerWidth + 1 && d.bottom <= window.innerHeight + 1,
+      };
+    });
+    expect(fits.widthPct).toBeLessThan(45);
+    expect(fits.barMatches).toBe(true);
+    expect(fits.onScreen).toBe(true);
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect.poll(() => readout(page, "STATE")).toBe("RUNNING");
+  });
+
+  test("the simulation idles when there is genuinely no room to dock", async ({ page }) => {
+    // Below the dock threshold, scrolling away must still stop the solver
+    // rather than burn a GPU on something nobody is looking at.
+    await page.setViewportSize({ width: 320, height: 420 });
+    await page.goto("/");
+    await page.waitForTimeout(4000);
     await page.locator("#sec-03").scrollIntoViewIfNeeded();
     await expect.poll(() => readout(page, "STATE")).toBe("IDLE");
     await expect(page.locator(".canvasWrapDocked")).toHaveCount(0);
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await expect.poll(() => readout(page, "STATE")).toBe("RUNNING");
   });
 
   test("a moved control shows where it started and can be put back", async ({ page }) => {

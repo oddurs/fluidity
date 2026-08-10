@@ -9,6 +9,12 @@ export interface LabCommand {
   scenario?: string;
   view?: ViewMode;
   params?: Partial<SimParams>;
+  /**
+   * Set on the engine rather than in SimParams — each scenario owns them —
+   * but adjustable from the canvas callouts, so a link has to carry them or
+   * COPY LINK would not reproduce what the sender was looking at.
+   */
+  tank?: { windSpeed?: number; obstacleRadius?: number };
 }
 
 type Listener = (cmd: LabCommand) => void;

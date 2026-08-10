@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { PNG } from "pngjs";
 import { canvasBrightness, canvasStats, drag, readout, SETTLE_MS } from "./helpers";
 
 // These assert physical behaviour of the solver, not pixels. Each one stands
@@ -112,6 +113,46 @@ test.describe("solver", () => {
     // written for: the quality controller ratcheting the grid down once
     // tripled the shedding frequency.
     expect(Math.abs(measured - predicted) / predicted).toBeLessThan(0.35);
+  });
+
+  test("Rayleigh-Taylor shows two fluids, not one against black", { tag: "@gpu" }, async ({
+    page,
+  }) => {
+    // It dyed only the heavy fluid, so three quarters of the frame was empty
+    // and the interface — the thing the instability actually is — had nothing
+    // on the far side of it to be an interface with.
+    await page.goto("/");
+    await page.waitForTimeout(3000);
+    await page.locator(".scenarioBtn", { hasText: "RAYLEIGH.T" }).click();
+    await page.waitForTimeout(14_000);
+
+    const { blown } = await canvasStats(page);
+    const mean = await canvasBrightness(page, { x0: 0.02, x1: 0.98, y0: 0.02, y1: 0.98 });
+    expect(mean).toBeGreaterThan(12);
+    expect(blown).toBeLessThan(0.5);
+
+    // Both fluids present: cold cyan above, warm amber below. Read from a
+    // screenshot, not an in-page drawImage — preserveDrawingBuffer is false,
+    // so copying the canvas from a later task returns black, which is exactly
+    // what this test did on its first run.
+    const png = PNG.sync.read(await page.locator(".fluidCanvas").screenshot());
+    const band = (y0: number, y1: number) => {
+      let r = 0;
+      let b = 0;
+      for (let y = Math.floor(y0 * png.height); y < Math.floor(y1 * png.height); y++) {
+        for (let x = 0; x < png.width; x++) {
+          const i = (y * png.width + x) << 2;
+          r += png.data[i];
+          b += png.data[i + 2];
+        }
+      }
+      return { r, b };
+    };
+    const hues = { top: band(0.02, 0.3), bottom: band(0.72, 0.98) };
+
+    // Cold fluid is blue-dominant; the ambient it falls into is not.
+    expect(hues.top.b).toBeGreaterThan(hues.top.r);
+    expect(hues.bottom.r).toBeGreaterThan(hues.bottom.b);
   });
 
   test("recovers from a lost GPU context", { tag: "@gpu" }, async ({ page, browserName }) => {

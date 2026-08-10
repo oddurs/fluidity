@@ -10,9 +10,15 @@
 
 import { useEffect, useState, type RefObject } from "react";
 
-/** Below this a docked thumbnail would cover the text it accompanies. */
-const MIN_DOCK_W = 900;
-const MIN_DOCK_H = 560;
+/**
+ * Below this there is no room to dock at all. It used to be 900×560, which
+ * excluded every phone — so on a phone, scrolling into the essay killed the
+ * simulation outright and left a screen of dead controls above a telemetry
+ * block honestly reporting IDLE. A phone is exactly where a reader is most
+ * likely to scroll away and want the tank to still be there.
+ */
+const MIN_DOCK_W = 340;
+const MIN_DOCK_H = 480;
 
 export interface Dock {
   docked: boolean;

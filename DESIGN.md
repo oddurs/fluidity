@@ -307,6 +307,13 @@ scroll-triggered reveals, no staggered entrances beyond the boot.**
 - **Tag** — void ground, paper text, orange left rule. Any data-on-dark
   annotation: probe readout, `U∞`, `α`, tour caption, keyboard legend.
 - **Gauge** — a slider whose set portion is orange. Reads at a glance.
+- **Two-fluid pairing** — the one deliberate exception to keeping a dye ramp's
+  limbs in the same half of the wheel. RAYLEIGH.T is *about* an interface
+  between two fluids, so the two need to be told apart: cold in ice, ambient
+  in amber. The rule exists to stop a single continuous field turning into a
+  rainbow, and two distinct fluids are not that. Amber, not magenta — sampling
+  inferno low gave a magenta that is the harshest partner cyan has, and read
+  as neither warm nor dense.
 - **Callout** — a labelled quantity drawn on the canvas, on its own dimension
   line where it has one. Callouts wore chip styling — dark fill, hard edge,
   orange bar — which in this system means "you can act on this", and people

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decodeState, encodeState } from "./permalink.ts";
 import { DEFAULT_PARAMS, type SimParams } from "./engine.ts";
+import { TANK_BOUNDS } from "./params.ts";
 
 const params: SimParams = {
   ...DEFAULT_PARAMS,
@@ -59,4 +60,31 @@ test("the encoded link stays short and readable", () => {
   const s = encodeState("karman", "dye", DEFAULT_PARAMS);
   assert.ok(s.length < 90, `link too long: ${s.length}`);
   assert.ok(!/%/.test(s), "link should need no escaping");
+});
+
+test("a link carries the quantities the canvas callouts set", () => {
+  // The callouts are controls, and COPY LINK claimed to reproduce what you
+  // were looking at while dropping both of them on the floor.
+  const hash = encodeState("karman", "dye", DEFAULT_PARAMS, {
+    windSpeed: 245,
+    obstacleRadius: 0.0925,
+  });
+  const back = decodeState("#" + hash);
+  assert.equal(back?.tank?.windSpeed, 245);
+  assert.equal(back?.tank?.obstacleRadius, 0.0925);
+});
+
+test("a link cannot drive the tank out of bounds either", () => {
+  const out = decodeState("#s=karman&u=99999&d=9");
+  assert.equal(out?.tank?.windSpeed, TANK_BOUNDS.windSpeed.max);
+  assert.equal(out?.tank?.obstacleRadius, TANK_BOUNDS.obstacleRadius.max);
+});
+
+test("a scenario with no obstacle writes no diameter", () => {
+  const hash = encodeState("plume", "dye", DEFAULT_PARAMS, {
+    windSpeed: 0,
+    obstacleRadius: 0,
+  });
+  assert.ok(!hash.includes("d="), hash);
+  assert.ok(!hash.includes("u="), hash);
 });

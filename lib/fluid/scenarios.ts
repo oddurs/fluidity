@@ -271,6 +271,33 @@ export const SCENARIOS: Scenario[] = [
     palette: (t) => scale(sample(RAMPS.ice, 0.4 + 0.4 * ((t * 0.29) % 1)), 0.16),
     onLoad: (e) => {
       e.clear();
+      // The ambient the cold fluid falls into gets a body of its own, dim and
+      // warm. Rayleigh–Taylor is a story about an *interface* between two
+      // fluids, and dyeing only the heavy one showed one side of it against
+      // black — most of the frame was empty, and the thing the scenario is
+      // named for was the hardest part to see. Kept far below the fingers in
+      // brightness: it fills the tank, so anything more reads as a wash.
+      for (let row = 0; row < 6; row++) {
+        for (let col = 0; col < 9; col++) {
+          e.splat(
+            0.02 + (0.96 * col) / 8,
+            // The top of the fill is the interface, so it is laid down wavy.
+            // Flat, it read as a ruled line across the frame — and a straight
+            // interface is also the one that takes longest to go unstable.
+            (0.05 + 0.58 * (row / 5)) * (row === 5 ? 1 + 0.09 * Math.sin(col * 1.9) : 1),
+            0,
+            0,
+            // Sampled high in inferno, not low: at 0.34 it came out magenta,
+            // which against the ice ramp is the harshest pairing on the wheel
+            // and reads as neither warm nor dense. Amber says both.
+            scale(sample(RAMPS.inferno, 0.58 + 0.05 * Math.sin(col * 1.3 + row)), 0.4),
+            3.4,
+          );
+          // Warm, so it is buoyant against the cold — the density difference
+          // is what drives the instability rather than decoration.
+  e.splatHeat(0.02 + (0.96 * col) / 8, 0.05 + 0.58 * (row / 5), 0.05, 3.4);
+        }
+      }
       // Perturb the interface so distinct fingers form instead of a sheet.
       for (let i = 0; i < 7; i++) {
         e.splatHeat(0.08 + (0.84 * i) / 6, 0.93, -0.35, 1.5);
@@ -285,6 +312,14 @@ export const SCENARIOS: Scenario[] = [
         // Stay in the ice ramp's saturated middle; its pale end accumulates
         // to flat white within seconds at this emitter count.
         e.splat(x, 0.985, 0, 0, scale(sample(RAMPS.ice, 0.42 + 0.12 * Math.sin(i * 1.7)), 0.011));
+      }
+      // The ambient is subject to the same dissipation as everything else, so
+      // without a trickle from the floor the tank drains back to black in
+      // about twenty seconds and the interface has nothing to press against.
+      for (let i = 0; i < 7; i++) {
+        const x = 0.07 + (0.86 * i) / 6;
+        e.splat(x, 0.015, 0, 0, scale(sample(RAMPS.inferno, 0.58), 0.016), 2.2);
+        e.splatHeat(x, 0.015, 0.02, 2.2);
       }
     },
   },

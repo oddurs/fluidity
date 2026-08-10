@@ -3,7 +3,7 @@
 
 import type { LabCommand } from "./bus";
 import type { SimParams, ViewMode } from "./engine";
-import { type BoundedParam, clampParam } from "./params.ts";
+import { type BoundedParam, clampParam, clampTank, type TankQuantity } from "./params.ts";
 
 const PARAM_KEYS: Record<string, BoundedParam> = {
   c: "curl",
@@ -15,14 +15,37 @@ const PARAM_KEYS: Record<string, BoundedParam> = {
   r: "splatRadius",
 };
 
+/**
+ * The canvas callouts are controls, so their values travel in the link too.
+ * They are not in SimParams — each scenario sets them on the engine — and
+ * leaving them out meant you could resize the cylinder, copy the link, and
+ * send someone a view that reproduced neither the cylinder nor the wind.
+ */
+const TANK_KEYS: Record<string, TankQuantity> = {
+  u: "windSpeed",
+  d: "obstacleRadius",
+};
+
 const VIEWS: ViewMode[] = ["dye", "velocity", "pressure", "curl", "heat"];
 
-export function encodeState(scenario: string, view: ViewMode, params: SimParams): string {
+export function encodeState(
+  scenario: string,
+  view: ViewMode,
+  params: SimParams,
+  tank?: { windSpeed: number; obstacleRadius: number },
+): string {
   const parts = [`s=${scenario}`, `v=${view}`];
   for (const [short, key] of Object.entries(PARAM_KEYS)) {
     const value = params[key];
     // Trim trailing zeros so the link stays short and human-readable.
     parts.push(`${short}=${Number(value.toFixed(3))}`);
+  }
+  if (tank) {
+    for (const [short, key] of Object.entries(TANK_KEYS)) {
+      // A scenario with no obstacle, or no wind, has nothing to say about it;
+      // writing a zero would only be noise in the link.
+      if (tank[key] > 0) parts.push(`${short}=${Number(tank[key].toFixed(4))}`);
+    }
   }
   return parts.join("&");
 }
@@ -53,5 +76,16 @@ export function decodeState(hash: string): LabCommand | null {
   }
   if (Object.keys(params).length > 0) cmd.params = params;
 
-  return cmd.scenario || cmd.view || cmd.params ? cmd : null;
+  const tank: { windSpeed?: number; obstacleRadius?: number } = {};
+  for (const [short, key] of Object.entries(TANK_KEYS)) {
+    const val = q.get(short);
+    if (val == null || val.trim() === "") continue;
+    const n = Number(val);
+    if (!Number.isFinite(n)) continue;
+    // Same rule as the sliders: a link is untrusted input.
+    tank[key] = clampTank(key, n);
+  }
+  if (Object.keys(tank).length > 0) cmd.tank = tank;
+
+  return cmd.scenario || cmd.view || cmd.params || cmd.tank ? cmd : null;
 }
