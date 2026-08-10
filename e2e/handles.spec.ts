@@ -32,6 +32,9 @@ test.describe("draggable callouts", () => {
   });
 
   test("the speed cannot be driven outside its bounds", async ({ page }) => {
+    // Each arrow press re-renders the annotation layer, which is slow enough
+    // on a software renderer to matter when there are dozens of them.
+    test.slow();
     // A callout is a control now, so it is subject to the same rule as every
     // other one: lib/fluid/params.ts owns the range and nothing exceeds it.
     //
@@ -52,9 +55,13 @@ test.describe("draggable callouts", () => {
     await expect.poll(() => speed(page)).toBe(400);
 
     // The tag sits at the left edge, so there is no room to drag back down
-    // the same way. The keyboard reaches the other bound.
+    // the same way; the keyboard reaches the other bound. From a fresh tank
+    // rather than from the 400 above, because the walk down from the top of
+    // the range is 76 presses and each one costs a render.
+    await page.reload();
+    await page.waitForTimeout(4000);
     await page.locator(".inletTag").focus();
-    for (let i = 0; i < 90; i++) await page.keyboard.press("ArrowLeft");
+    for (let i = 0; i < 40; i++) await page.keyboard.press("ArrowLeft");
     await expect.poll(() => speed(page)).toBe(20);
   });
 
