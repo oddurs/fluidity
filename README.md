@@ -31,8 +31,12 @@ Per frame, in the order the sections of the essay are written:
 
 You can X-ray any of those fields while it runs, drag the obstacle through the
 flow, park a probe anywhere to read live values, and hear the vortex shedding as
-an aeolian tone whose pitch is measured from the pressure trace rather than
-faked.
+an aeolian tone whose pitch is measured from the pressure trace by
+autocorrelation rather than faked.
+
+The two quantities the equations depend on are under your hand: drag the `U∞`
+callout sideways to change the freestream speed, and the `D` dimension line up
+or down to resize the cylinder, then watch `f ≈ 0.2·U/D` hold.
 
 ### It is honest about what it is not
 
@@ -68,7 +72,9 @@ result you can only describe in motion does not have to be described.
 ```bash
 npm test              # unit + end-to-end
 npm run test:unit     # pure logic, no browser, no dependencies
-npm run test:e2e      # Chromium, WebKit and Firefox
+npm run test:e2e      # Chromium, WebKit and Firefox — the real gate
+npm run test:e2e:ci   # what CI can actually verify
+npm run review        # a contact sheet of every state, for looking at
 ```
 
 Unit tests run on Node's built-in runner against the TypeScript sources
@@ -76,7 +82,26 @@ directly — no build step and no test framework. The end-to-end suite asserts
 physical behaviour rather than pixels: that flow reaches the outlet instead of
 stalling before it, that the measured shedding frequency agrees with the
 Strouhal number, that a lost GPU context recovers, that the dye keeps its colour
-instead of blowing out to white. Each test names a bug that actually shipped.
+instead of blowing out to white, that every scenario still renders something
+and is still moving. Each test names a bug that actually shipped.
+
+It runs against the static export rather than the dev server, because that is
+what ships and because `next dev` did not survive a full three-engine run.
+
+**CI runs Chromium only, and skips the tests tagged `@gpu`.** GitHub's runners
+have no GPU: Firefox and WebKit cannot rasterise WebGL2 there at all, and
+Chromium manages it through SwiftShader at about a fifth of hardware speed —
+fast enough to check the interface and the layout, nowhere near fast enough for
+anything that waits on a wake to develop. So the physics is a local gate, and
+`CONTRIBUTING.md` says so plainly rather than letting a green badge imply
+coverage it does not have.
+
+`npm run review` is not a test. It captures every scenario against every field,
+the layouts, the docked tank and the autopilot, measures each frame, and
+composes the lot into one labelled sheet with anything suspicious flagged. Most
+of what goes wrong in a renderer is visible and nothing else — a scenario that
+settles to black, an overlay that covers what it annotates — so this makes
+taking forty screenshots cheap enough to actually do.
 
 ## Layout
 
@@ -92,6 +117,8 @@ lib/fluid/      The solver and everything it needs
   tone.ts         shedding-frequency estimation and the aeolian tone
   plate.ts        the export layout, shared by the still and the clip
   recorder.ts     MediaRecorder capture of the plate
+components/stage/ the stage's concerns, one hook each
+scripts/        the static server the tests run against, and the contact sheet
 e2e/            Playwright specs
 DESIGN.md       the design system, and the reasoning behind it
 ```

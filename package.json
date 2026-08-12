@@ -32,6 +32,8 @@
     "test": "npm run test:unit && npm run test:e2e",
     "test:unit": "node --test \"lib/**/*.test.ts\"",
     "test:e2e": "playwright test",
+    "serve:out": "node scripts/serve-out.mjs",
+    "review": "node scripts/contact-sheet.mjs",
     "test:e2e:ci": "playwright test --project=chromium --grep-invert @gpu",
     "test:e2e:chromium": "playwright test --project=chromium"
   },
@@ -52,5 +54,6 @@
     "eslint-config-next": "16.3.0",
     "pngjs": "^7.0.0",
     "typescript": "^5"
-  }
+  },
+  "author": "oddurs (https://github.com/oddurs)"
 }

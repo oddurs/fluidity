@@ -31,9 +31,23 @@ frequency, clip capture — carry the `@gpu` tag, and CI skips them:
 ```bash
 npm run test:e2e         # everything, three engines — the actual gate
 npm run test:e2e:ci      # what CI runs: Chromium, no @gpu
+npm run review           # a contact sheet of every state, for looking at
 ```
 
 Tag a new test `@gpu` if it measures the simulation rather than the page.
+
+The suite runs against the static export, not `next dev`, and builds it for
+you. Do not run your own dev server alongside it: Playwright reuses whatever
+answers on port 3000 and tears down the process group afterwards, so a server
+you started dies mid-run and every remaining test fails with a connection
+error that looks exactly like a real regression.
+
+`npm run review` writes `review/contact-sheet.png` — every scenario against
+every field, the four layouts, the docked tank and the autopilot, each one
+measured for brightness, saturation and blowout, with anything suspicious
+flagged. It asserts nothing. It exists because most of what goes wrong here is
+visible and nothing else, and because judging forty separate screenshots is
+not something anyone actually does.
 Cross-engine differences are real here too — the control column fits exactly
 at 1000px in all three, and each engine sizes form controls differently — so
 the local run is what catches them, not the badge.

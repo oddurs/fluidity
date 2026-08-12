@@ -40,11 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# static export
-/out/
-
 # playwright
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+# contact sheets from `npm run review` — regenerate, do not commit
+/review/

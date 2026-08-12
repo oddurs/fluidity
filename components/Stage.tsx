@@ -506,13 +506,29 @@ export function Stage() {
   // feed it to the tone. Slow, because the note follows the flow, not the
   // frame rate.
   useEffect(() => {
+    // Reported as a running median, not as each window's raw answer. A four
+    // second window of a real wake is a small sample: measured on the tank the
+    // estimate walks 0.5 · 0.5 · 3.0 · 1.1 · 0.7 while the shedding itself is
+    // steady, and a readout that jumps by a factor of six is unreadable —
+    // worse, it is untrue, because the thing it describes is not doing that.
+    // Nine samples at 200ms is under two seconds of lag on a quantity that
+    // changes over tens of seconds.
+    const recent: number[] = [];
     const id = setInterval(() => {
       const pitch = probeRef.current.on
         ? estimatePitch(traceRef.current, 1000 / TRACE_INTERVAL_MS)
         : { freq: 0, strength: 0 };
-      shedHzRef.current = pitch.freq;
-      setShedHz(pitch.freq);
-      toneRef.current?.update(pitch);
+
+      recent.push(pitch.freq);
+      if (recent.length > 9) recent.shift();
+      const sorted = [...recent].sort((a, b) => a - b);
+      const median = sorted[sorted.length >> 1];
+
+      shedHzRef.current = median;
+      setShedHz(median);
+      // The tone follows the same median: an octave leap every fifth of a
+      // second is the audible version of the same lie.
+      toneRef.current?.update({ freq: median, strength: pitch.strength });
     }, 200);
     return () => clearInterval(id);
   }, []);

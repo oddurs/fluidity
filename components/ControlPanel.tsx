@@ -213,7 +213,24 @@ export function ControlPanel({
       </div>
 
       <div className="panelBlock panelActions">
-        <p className="panelLabel">ACTIONS</p>
+        <div className="blockHead">
+          <p className="panelLabel">ACTIONS</p>
+          {/* Help, beside the block its shortcuts drive. Among the buttons it
+              was the one control that changed nothing about the tank. */}
+          <button
+            className="markKeys"
+            onClick={onToggleKeys}
+            aria-label="Keyboard shortcuts"
+            title="Keyboard shortcuts"
+          >
+            ?
+          </button>
+        </div>
+        {/* Three rows of three, and each row is one kind of thing: act on the
+            tank, switch a mode, take something away. Alternating three-up and
+            two-up rows meant no two rows shared a column edge, so the block
+            read as ragged and the grouping it was trying to express was
+            invisible. The grid carries the grouping now. */}
         <div className="actionRow actionRow3">
           <button className="btn" onClick={onTogglePause} aria-pressed={paused}>
             {paused ? "RESUME" : "PAUSE"}
@@ -225,12 +242,15 @@ export function ControlPanel({
             CLEAR
           </button>
         </div>
-        <div className="actionRow">
+        <div className="actionRow actionRow3">
           <button className="btn" onClick={onToggleAutopilot} aria-pressed={autopilot}>
             {autopilot ? "STOP TOUR" : "AUTO.PILOT"}
           </button>
           <button className="btn" onClick={onToggleProbe} aria-pressed={probe}>
             {probe ? "PROBE: ON" : "PROBE: OFF"}
+          </button>
+          <button className="btn" onClick={onToggleTone} aria-pressed={tone}>
+            {tone ? "TONE: ON" : "TONE: OFF"}
           </button>
         </div>
         <div className="actionRow actionRow3">
@@ -247,14 +267,6 @@ export function ControlPanel({
           </button>
           <button className="btn" onClick={onCopyLink}>
             LINK
-          </button>
-        </div>
-        <div className="actionRow">
-          <button className="btn" onClick={onToggleTone} aria-pressed={tone}>
-            {tone ? "TONE: ON" : "TONE: OFF"}
-          </button>
-          <button className="btn" onClick={onToggleKeys}>
-            KEYBOARD ?
           </button>
         </div>
       </div>

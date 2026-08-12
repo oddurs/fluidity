@@ -144,6 +144,9 @@ test.describe("interface", () => {
   });
 
   test("the tank docks and keeps simulating while you read", async ({ page }) => {
+    // Six seconds of settling plus two intersection observers and a scroll:
+    // fits easily alone, and ran past the default budget behind a full suite.
+    test.slow();
     // The essay is 14,000px long and every TRY IT acts on the solver. Without
     // this you fire an action at something you cannot see.
     await page.setViewportSize({ width: 1500, height: 1000 });

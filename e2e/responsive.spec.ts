@@ -47,10 +47,17 @@ test.describe("responsive", () => {
       await page.setViewportSize({ width: 1400, height });
       await page.goto("/");
       await page.waitForTimeout(3500);
+      // Across the tank only, not the whole width. The control column ends at
+      // the same edge, and below about 950px tall it scrolls — so its last
+      // visible row is whatever telemetry text happens to land there, which
+      // is legitimately bright and has nothing to do with the rule this test
+      // is about.
+      const canvas = (await page.locator(".fluidCanvas").boundingBox())!;
       const png = PNG.sync.read(await page.screenshot());
+      const scale = png.width / page.viewportSize()!.width;
       const y = png.height - 1;
       let brightest = 0;
-      for (let x = 0; x < png.width; x++) {
+      for (let x = 0; x < Math.floor((canvas.x + canvas.width) * scale); x++) {
         const p = (y * png.width + x) << 2;
         brightest = Math.max(brightest, (png.data[p] + png.data[p + 1] + png.data[p + 2]) / 3);
       }

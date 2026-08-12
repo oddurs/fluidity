@@ -1330,6 +1330,45 @@ input[type="range"]::-moz-range-thumb {
   grid-template-columns: repeat(3, 1fr);
 }
 
+/* The section head carries its label and, where there is one, a way in. */
+.blockHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* Square like everything else, and quiet until wanted — a way in, not an
+   action. It began at the nameplate, which at panel width had no spare room:
+   it pushed the tagline onto a second line. */
+.markKeys {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--machine-rule);
+  border-radius: 0;
+  background: transparent;
+  color: var(--machine-fg);
+  font-family: var(--mono);
+  font-size: var(--t-ui);
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.markKeys:hover,
+.markKeys:focus-visible {
+  opacity: 1;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 
 /* telemetry — same signal language as the canvas annotations:
    void ground, paper values, orange for the live channel labels. */

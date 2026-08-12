@@ -67,6 +67,12 @@ whatever you are measuring.
   surfaces as `NS_ERROR_CONNECTION_REFUSED` partway through a run and looks
   exactly like a real regression. Several hours went into chasing failures
   that were only this. Free the port and let Playwright own the server.
+- **A loaded machine makes the tank run in slow motion.** `dt` is clamped at
+  `1/30`s, so below thirty frames a second the simulation advances slower than
+  real time and every wall-clock measurement scales with it — the shedding
+  frequency reads half its true value and the solver looks broken. Scale by
+  `min(1, fps/30)` before comparing a measured rate against a prediction, and
+  suspect this first when a physics assertion fails only inside a full suite.
 - **Firefox reports `clientX: 0` for a pointer beyond the viewport**, not the
   viewport edge. A test that drags far past the window reads in Firefox as a
   drag the other way. Drag to the window edge instead.
