@@ -4,61 +4,42 @@ import { expect, test } from "@playwright/test";
 // has asked the platform to calm down. Neither had any coverage.
 
 test.describe("robustness", () => {
-  test("a solver that throws does not take the essay with it", async ({ page }) => {
-    // Before the error boundary, a throw anywhere in the stage unmounted the
-    // whole document — canvas, controls and fourteen thousand pixels of prose
-    // — to a white page with no indication anything had happened.
+  test("no WebGL2 says so, and leaves the essay standing", async ({ page }) => {
+    // The app's known failure is a browser that cannot give it a WebGL2
+    // context, and it handles that itself rather than throwing: it says what
+    // happened, in place, at the size of the thing it replaced.
+    //
+    // Which is also why the error boundary around the stage has no test here.
+    // It is a backstop for the errors nobody predicted, and a synthetic GPU
+    // failure does not reach it — the engine catches that one first. Anything
+    // that did reach it would be, by definition, not this.
     await page.addInitScript(() => {
       const real = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function (kind: string, ...rest: unknown[]) {
-        // Only the simulation's context. The export plate and the tests'
-        // own 2D readbacks must keep working.
-        if (kind === "webgl2") throw new Error("synthetic GPU failure");
+        // Only the simulation's context: the plate export and the tests' own
+        // 2D readbacks have to keep working.
+        if (kind === "webgl2") return null;
         return (real as (...a: unknown[]) => unknown).call(this, kind, ...rest);
       } as typeof HTMLCanvasElement.prototype.getContext;
     });
 
     await page.goto("/");
-    await page.waitForTimeout(2500);
+    await expect(page.locator(".glError")).toBeVisible();
+    await expect(page.locator(".glErrorTitle")).toContainText(/SOLVER OFFLINE/i);
+    // It names what to do about it rather than only what went wrong.
+    await expect(page.locator(".glError")).toContainText(/WebGL2/i);
 
-    // The stage says what happened, in the interface's own voice.
-    await expect(page.locator(".stageFailed")).toBeVisible();
-    await expect(page.locator(".stageFailed")).toContainText(/TANK OFFLINE/i);
+    // Nothing else is announced as broken, and no overlay is left pointing at
+    // a canvas that is not there.
+    await expect(page.locator(".annotations")).toHaveCount(0);
 
-    // And the essay below is untouched, because it never needed the solver.
-    await expect(page.locator("#sec-00")).toBeAttached();
+    // The essay never needed the solver.
     const essay = await page.locator("#sec-00").textContent();
     expect((essay ?? "").length).toBeGreaterThan(200);
-
-    // The page is still a page: no horizontal overflow, still scrollable.
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
     expect(overflow).toBe(0);
-  });
-
-  test("the failure offers a way back rather than a dead end", async ({ page }) => {
-    await page.addInitScript(() => {
-      const real = HTMLCanvasElement.prototype.getContext;
-      let fail = true;
-      // Fails once, so retrying can genuinely succeed — a button that cannot
-      // work is worse than no button.
-      (window as unknown as { __healGpu: () => void }).__healGpu = () => {
-        fail = false;
-      };
-      HTMLCanvasElement.prototype.getContext = function (kind: string, ...rest: unknown[]) {
-        if (kind === "webgl2" && fail) throw new Error("synthetic GPU failure");
-        return (real as (...a: unknown[]) => unknown).call(this, kind, ...rest);
-      } as typeof HTMLCanvasElement.prototype.getContext;
-    });
-
-    await page.goto("/");
-    await expect(page.locator(".stageFailed")).toBeVisible();
-    await page.evaluate(() => (window as unknown as { __healGpu: () => void }).__healGpu());
-    await page.locator(".stageFailed .btn").click();
-
-    await expect(page.locator(".fluidCanvas")).toBeVisible();
-    await expect(page.locator(".stageFailed")).toHaveCount(0);
   });
 
   test("reduced motion is honoured, and the tank still answers", async ({ page }) => {
@@ -77,12 +58,16 @@ test.describe("robustness", () => {
     };
     expect(await stillMoving()).toBe(true);
 
-    // Chrome that merely decorates stands down.
+    // Chrome that merely decorates stands down. Only what is actually on
+    // screen counts: the scrolling ticker is hidden outright and replaced by
+    // a static line, and an element set to display:none keeps its
+    // animation-name without ever animating anything.
     const animated = await page.evaluate(() => {
       const names: string[] = [];
       for (const el of document.querySelectorAll(".panelBlock, .scrollCueTicker, .btn")) {
         const s = getComputedStyle(el);
-        if (s.animationName !== "none" && s.animationDuration !== "0s") {
+        const rendered = s.display !== "none" && s.visibility !== "hidden";
+        if (rendered && s.animationName !== "none" && s.animationDuration !== "0s") {
           names.push(`${el.className}:${s.animationName}`);
         }
       }

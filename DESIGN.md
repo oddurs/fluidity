@@ -307,6 +307,12 @@ scroll-triggered reveals, no staggered entrances beyond the boot.**
 - **Tag** — void ground, paper text, orange left rule. Any data-on-dark
   annotation: probe readout, `U∞`, `α`, tour caption, keyboard legend.
 - **Gauge** — a slider whose set portion is orange. Reads at a glance.
+- **Dye survives a scenario change.** Only RAYLEIGH.T clears on load, because
+  it needs a clean interface between two fluids. Everywhere else the previous
+  experiment fades out under the new one: the tour changes scenario six times,
+  and clearing each time would hard-cut it to black repeatedly. The caption
+  changes at once, though — it names what you are looking at, not what is
+  still fading.
 - **Two-fluid pairing** — the one deliberate exception to keeping a dye ramp's
   limbs in the same half of the wheel. RAYLEIGH.T is *about* an interface
   between two fluids, so the two need to be told apart: cold in ice, ambient

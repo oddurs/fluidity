@@ -21,7 +21,10 @@ npm run dev                  # localhost:3000
 npm run build                # static export to ./out
 npm test                     # unit + e2e
 npm run test:unit            # node --test, no browser, fast
+npm run test:e2e             # three engines against the static export
 npm run test:e2e:chromium    # one engine, when iterating
+npm run test:e2e:ci          # only what a GPU-less runner can verify
+npm run review               # contact sheet of every state, for looking at
 ```
 
 ## Verify visually, and measure
@@ -62,11 +65,13 @@ whatever you are measuring.
   Both stop the tag wrapping; only `pre` keeps the space. Measure the gap with
   a Range rather than judging it from a screenshot, which is how it got
   declared fixed once while still broken.
-- **Never run your own dev server while Playwright runs.** It reuses a server
-  on :3000 and then tears down the process group on exit, killing it — which
-  surfaces as `NS_ERROR_CONNECTION_REFUSED` partway through a run and looks
-  exactly like a real regression. Several hours went into chasing failures
-  that were only this. Free the port and let Playwright own the server.
+- **Never run your own server on :3000 while Playwright runs.** It reuses
+  whatever answers there and tears down the process group on exit, killing it —
+  which surfaces as `NS_ERROR_CONNECTION_REFUSED` partway through a run and
+  looks exactly like a real regression. Several hours went into chasing
+  failures that were only this. Free the port and let Playwright own it; the
+  suite builds the static export and serves it via `scripts/serve-out.mjs`,
+  because `next dev` did not survive a full three-engine run either.
 - **A loaded machine makes the tank run in slow motion.** `dt` is clamped at
   `1/30`s, so below thirty frames a second the simulation advances slower than
   real time and every wall-clock measurement scales with it — the shedding
@@ -82,15 +87,19 @@ whatever you are measuring.
 
 ## Invariants worth preserving
 
-- `lib/fluid/params.ts` is the only source of parameter ranges. The sliders and
-  the permalink decoder both read it so they cannot drift; a permalink is
-  untrusted input and must stay clamped.
+- `lib/fluid/params.ts` is the only source of parameter ranges — `PARAM_BOUNDS`
+  for the sliders, `TANK_BOUNDS` for the two quantities the canvas callouts
+  drag. The controls and the permalink decoder both read it so they cannot
+  drift; a permalink is untrusted input and must stay clamped.
 - Bloom applies to the dye view only. The X-rays are diagnostics and must not
   be smeared.
 - Motion must name its job (see `DESIGN.md` §6), and every animation needs a
   reduced-motion equivalent that still answers the same question.
 - Telemetry never lies. If the simulation is idle or the context is lost, the
-  readouts say so rather than reporting a stale frame rate.
+  readouts say so rather than reporting a stale frame rate — and a number is
+  shown to the precision it has earned. The shedding frequency is a running
+  median shown to one decimal with a `≈`, because a single four-second window
+  is a small sample of a wandering wake.
 
 ## Style
 
