@@ -145,7 +145,10 @@ const html = `<style>
   body { margin:0; background:#0b0b0b; font-family: ui-monospace, monospace; }
   .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:14px; padding:14px; }
   figure { margin:0; background:#111; border:1px solid #333; }
-  img { display:block; width:100%; height:150px; object-fit:cover; background:#000; }
+  /* contain, not cover: cover crops to the centre, which quietly hid the
+     docked thumbnail out of the corner of the one cell meant to show it. A
+     review sheet that crops is a review sheet that lies. */
+  img { display:block; width:100%; height:170px; object-fit:contain; background:#000; }
   figcaption { color:#e9e7df; font-size:11px; padding:5px 6px; letter-spacing:.06em; }
   .m { color:#8a8a8a; font-size:10px; }
   .warn { color:#ff4400; }
