@@ -14,6 +14,9 @@ const diameterPx = (page: import("@playwright/test").Page) =>
 
 test.describe("permalinks", () => {
   test("a copied link reproduces the tank, not just the scenario", async ({ page }) => {
+    // Two full page loads with a settle each, plus eleven key presses. Alone
+    // that is seconds; on the software renderer CI runs it is not.
+    test.slow();
     await page.goto("/");
     await page.waitForTimeout(4000);
 

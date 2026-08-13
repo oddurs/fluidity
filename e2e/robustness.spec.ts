@@ -76,9 +76,14 @@ test.describe("robustness", () => {
     expect(animated, `still animating: ${animated.join(", ")}`).toEqual([]);
   });
 
-  test("the page survives a scenario switch mid-recording", async ({ page }) => {
+  test("the page survives a scenario switch mid-recording", { tag: "@gpu" }, async ({ page }) => {
     // The recorder paints from inside the render loop and holds a stream
     // open. Changing the tank underneath it must not throw.
+    //
+    // Tagged @gpu like the rest of clip capture: it records six seconds of a
+    // live canvas and waits for the encoder, which on a software renderer
+    // does not finish inside any budget worth setting.
+    test.slow();
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(String(e)));
 
